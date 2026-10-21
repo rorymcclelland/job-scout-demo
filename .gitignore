@@ -1,0 +1,15 @@
+node_modules/
+
+# Your job alerts, runs and seen list. Personal data stays on your machine and
+# in your sync folder; it never goes to GitHub.
+data/
+
+# The Bridge password.
+.env
+
+# The board's copy of the owner's settings (floors, places, words): personal, and rewritten each morning.
+config/settings.json
+
+# Model spike and retest results: copies of real adverts.
+data/spike/
+spike/*.json

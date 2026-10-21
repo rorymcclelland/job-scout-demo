@@ -1,0 +1,28 @@
+Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=lumenpay.example
+From: "LumenPay Calendar" <calendar@lumenpay.example>
+To: sam.calder@example.com
+Subject: Invitation: Sam Calder / LumenPay, first conversation
+Date: Mon, 19 Oct 2026 16:05:00 +0100
+Message-ID: <demo-invite@lumenpay.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="DEMOB1"
+
+--DEMOB1
+Content-Type: text/plain; charset=UTF-8
+
+You have been invited to: Sam Calder / LumenPay, first conversation, Tuesday 27 October 2026, 10:00 to 10:45 (Europe/London). Please reply to accept.
+--DEMOB1
+Content-Type: text/calendar; charset=UTF-8; method=REQUEST
+Content-Disposition: attachment; filename=invite.ics
+
+BEGIN:VCALENDAR
+VERSION:2.0
+METHOD:REQUEST
+BEGIN:VEVENT
+DTSTART;TZID=Europe/London:20261027T100000
+DTEND;TZID=Europe/London:20261027T104500
+SUMMARY:Sam Calder / LumenPay, first conversation
+ORGANIZER;CN=Alex Moreno:mailto:alex.moreno@lumenpay.example
+END:VEVENT
+END:VCALENDAR
+--DEMOB1--

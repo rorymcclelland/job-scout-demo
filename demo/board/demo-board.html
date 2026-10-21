@@ -1,0 +1,3200 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Job Scout demo board</title>
+<style>
+/* Layout: a histogram of applications sent per week over a four-column board —
+   Draft, Applied, In Conversation, Rejected. Both the histogram and any column
+   collapse; collapsed columns shrink to a labelled rail and hand their width to
+   the columns still open. Columns wrap to two, then one, as the screen narrows. */
+:root {
+  --bg: #eef1f1;
+  --surface: #ffffff;
+  --surface-2: #f6f8f8;
+  --line: #d6dcdb;
+  --line-soft: #e4e9e8;
+  --ink: #151b1a;
+  --ink-soft: #55615f;
+  --ink-faint: #879190;
+  --accent: #0d6b61;
+  --accent-soft: #e2efed;
+  --bar: #0d6b61;
+  --bar-now: #0a524a;
+  --grid: #e4e9e8;
+  --target: #c62828;
+  --avg: #d07c00;
+  --c-draft: #7d8887;
+  --c-applied: #36699f;
+  --c-conversation: #a9651d;
+  --c-rejected: #97474a;
+  --c-archived: #a3abaa;
+  --c-scout: #6b4fa0;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101514;
+    --surface: #18201f;
+    --surface-2: #1f2726;
+    --line: #2b3534;
+    --line-soft: #232c2b;
+    --ink: #e7edec;
+    --ink-soft: #9dabaa;
+    --ink-faint: #6f7d7c;
+    --accent: #5cc4b5;
+    --accent-soft: #1b2c2a;
+    --bar: #42a699;
+    --bar-now: #5cc4b5;
+    --grid: #262f2e;
+    --target: #e8615a;
+    --avg: #e9a63f;
+    --c-draft: #8d9897;
+    --c-applied: #7fabdf;
+    --c-conversation: #d9a861;
+    --c-rejected: #dc8a8d;
+    --c-archived: #5d6968;
+    --c-scout: #b8a2e3;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101514;
+  --surface: #18201f;
+  --surface-2: #1f2726;
+  --line: #2b3534;
+  --line-soft: #232c2b;
+  --ink: #e7edec;
+  --ink-soft: #9dabaa;
+  --ink-faint: #6f7d7c;
+  --accent: #5cc4b5;
+  --accent-soft: #1b2c2a;
+  --bar: #42a699;
+  --bar-now: #5cc4b5;
+  --grid: #262f2e;
+  --target: #e8615a;
+  --avg: #e9a63f;
+  --c-draft: #8d9897;
+  --c-applied: #7fabdf;
+  --c-conversation: #d9a861;
+  --c-rejected: #dc8a8d;
+  --c-archived: #5d6968;
+  --c-scout: #b8a2e3;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-block: 36px 72px;
+}
+
+header { margin-bottom: 20px; }
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(29px, 5.5vw, 40px);
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  margin: 0 0 5px;
+  text-wrap: balance;
+}
+.sub { color: var(--ink-soft); margin: 0; font-size: 14.5px; max-width: 64ch; }
+
+.titlerow { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.titlerow h1 { flex: 1 1 auto; min-width: 0; }
+.theme, .seg {
+  flex: none;
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px;
+}
+.theme { margin-top: 7px; }
+.theme button, .seg button {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  border-radius: 999px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.theme button:hover, .seg button:hover { color: var(--ink-soft); }
+.theme button[aria-pressed="true"], .seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.07);
+}
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 0 12px;
+}
+.chart-controls .cl {
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.count b { color: var(--ink-soft); font-weight: 500; }
+
+/* ---- collapsible panel (the histogram) ---- */
+.panel {
+  margin-top: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+}
+.panel-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 13px 15px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  text-align: left;
+  color: var(--ink);
+}
+.panel-head:hover { background: var(--surface-2); }
+.panel-head h2 {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0;
+}
+.panel-head .hint {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.chev {
+  flex: none;
+  width: 14px;
+  color: var(--ink-faint);
+  font-size: 10px;
+  line-height: 1;
+}
+.panel-body { padding: 4px 15px 16px; }
+
+.chart { position: relative; }
+.plot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 156px;
+  /* Top padding is headroom for the value labels, so a full-height bar's number
+     still sits inside the plot; the gridlines start at the same line. */
+  padding: 20px 0 0 26px;
+  border-bottom: 1px solid var(--line);
+}
+.overlay { position: absolute; pointer-events: none; overflow: visible; }
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 10px;
+}
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 3px 9px 3px 7px;
+}
+button.key { cursor: pointer; }
+button.key:hover { border-color: var(--line); }
+button.key[aria-pressed="false"] { color: var(--ink-faint); }
+button.key[aria-pressed="false"] .swatch { opacity: 0.3; }
+.swatch { flex: none; width: 15px; height: 0; border-top-width: 2px; border-top-style: solid; }
+.swatch.fill { height: 10px; border: none; border-radius: 2px; }
+.plot.dense { gap: 3px; }
+.plot.dense .bar { width: 76%; }
+.gridlines { position: absolute; inset: 20px 0 0 26px; pointer-events: none; }
+.gridline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--grid); }
+.gridline span {
+  position: absolute;
+  left: -26px;
+  top: -0.65em;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.barcol {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+.bar {
+  width: 68%;
+  max-width: 34px;
+  min-height: 2px;
+  background: var(--bar);
+  border-radius: 4px 4px 0 0;
+}
+.barcol[data-n="0"] .bar { background: var(--grid); }
+.barcol.now .bar { background: var(--bar-now); }
+.barcol .val {
+  position: absolute;
+  left: 0; right: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.xaxis {
+  display: flex;
+  gap: 6px;
+  padding-left: 26px;
+  margin-top: 6px;
+  /* Labels may bleed over their empty neighbours, but never past the axis. */
+  overflow-x: clip;
+}
+.xtick {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: visible;
+}
+.caption {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  line-height: 1.5;
+}
+.tip {
+  position: absolute;
+  z-index: 5;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+}
+
+/* ---- board ---- */
+.board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 18px;
+  align-items: flex-start;
+}
+.col {
+  flex: 1 1 0;
+  min-width: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-height: 150px;
+}
+.col.collapsed { flex: 0 0 48px; padding: 12px 6px; align-items: center; }
+.col.is-over { border-color: var(--stripe); background: var(--accent-soft); }
+
+.col-head { display: flex; align-items: center; gap: 8px; padding: 0 2px 2px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--stripe); flex: none; }
+.col-head h2 {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0;
+  min-width: 0;
+}
+.col-head .n, .col-rail .n {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.col-head .n { margin-left: auto; }
+.fold {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 3px 4px;
+  margin: 0;
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 4px;
+  font-family: var(--font-body);
+}
+.fold:hover { color: var(--accent); background: var(--surface); }
+
+.col-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  font-family: var(--font-body);
+  color: var(--ink-soft);
+  width: 100%;
+}
+.col-rail:hover .rail-label { color: var(--accent); }
+.rail-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.col-empty {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 16px 12px;
+  font-size: 13px;
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--stripe);
+  border-radius: 8px;
+  padding: 12px 13px;
+}
+.card.is-dragging { opacity: 0.45; }
+.card.muted .co, .card.muted .blurb { opacity: 0.78; }
+/* A folded card keeps only what identifies it and what is owed next, so a long
+   column can be skimmed; everything else is re-rendered on expand, not hidden. */
+.card.folded { padding-bottom: 10px; }
+.card-fold {
+  flex: none;
+  align-self: flex-start;
+  margin: 1px -3px 0 0;
+  background: none;
+  border: none;
+  padding: 4px 5px;
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 4px;
+  font-family: var(--font-body);
+}
+.card-fold:hover { color: var(--accent); background: var(--surface-2); }
+.next-peek {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.next-peek b {
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-right: 7px;
+}
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.card-head { display: flex; align-items: flex-start; gap: 8px; }
+.grip {
+  flex: none;
+  margin: 2px 0 0;
+  width: 18px; height: 20px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: grab;
+  color: var(--ink-faint);
+  border-radius: 4px;
+  line-height: 1;
+  font-size: 13px;
+}
+.grip:hover { color: var(--ink-soft); background: var(--surface-2); }
+.grip:active { cursor: grabbing; }
+.titles { min-width: 0; flex: 1; }
+.co {
+  font-family: var(--font-display);
+  font-size: 17.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+.ro { color: var(--ink-soft); font-size: 13.5px; margin: 0; overflow-wrap: anywhere; }
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.meta a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+.meta .loc { overflow-wrap: anywhere; }
+
+.blurb { margin: 10px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--ink); }
+
+.next {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.next b {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.notes { margin-top: 8px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
+
+
+/* ───────────── Sprint 6b: the Inbox and Calendar tabs (I5, I7) ───────────── */
+.views { display: flex; gap: 6px; margin: 14px 0 4px; flex-wrap: wrap; }
+.views button {
+  font: inherit; font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); cursor: pointer;
+}
+.views button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .views button[aria-pressed="true"] { color: #0c1716; } }
+:root[data-theme="dark"] .views button[aria-pressed="true"] { color: #0c1716; }
+.views .new { margin-left: 6px; font-variant-numeric: tabular-nums; }
+.view { margin-top: 14px; }
+.inbox-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.inbox-grid h2, .cal-head h2 { font-size: 15px; margin: 0 0 8px; }
+.inbox-grid .hint { font-size: 12px; color: var(--ink-faint); font-style: italic; margin: -4px 0 10px; }
+.reply-row, .todo-row, .ev {
+  background: var(--surface); border: 1px solid var(--line-soft, var(--line)); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+}
+.reply-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; }
+.reply-row.offer { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.reply-row .d { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); padding-top: 2px; }
+.reply-row .who { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.reply-row .role { font-size: 12.5px; color: var(--ink-soft); }
+.reply-row .state { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
+.reply-row .acts { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.chip { display: inline-block; font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; margin-left: 6px; color: var(--ink-soft); vertical-align: 1px; }
+.chip.t-rejection { border-color: var(--c-rejected); color: var(--c-rejected); }
+.chip.t-invitation, .chip.t-assessment, .chip.t-offer { border-color: var(--accent); color: var(--accent); }
+.todo-row { display: flex; gap: 10px; align-items: flex-start; }
+.todo-row input[type="checkbox"] { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+.todo-row .t { font-size: 13.5px; color: var(--ink); overflow-wrap: anywhere; }
+.todo-row .s { font-size: 12px; color: var(--ink-faint); }
+.todo-row .s .late { color: var(--c-rejected); font-weight: 600; font-style: normal; }
+.todo-row.done .t { text-decoration: line-through; color: var(--ink-faint); }
+.todo-add { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto; gap: 8px; margin-top: 8px; }
+.cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.cal-head h2 { margin: 0 auto 0 0; }
+.cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-day { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-height: 120px; padding: 7px; }
+.cal-day.today { border-color: var(--accent); }
+.cal-day.other { opacity: .55; }
+.cal-day .dn { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 5px; }
+.cal-month .cal-day { min-height: 92px; }
+.ev { padding: 6px 8px; margin-bottom: 5px; font-size: 12px; cursor: pointer; }
+.ev .tm { font-family: var(--font-mono); font-size: 11px; }
+.ev .orig { color: var(--ink-faint); font-size: 11px; }
+.ev.confirmed { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ev.confirmed .orig { color: rgba(255,255,255,.8); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ev.confirmed { color: #0c1716; } :root:not([data-theme="light"]) .ev.confirmed .orig { color: #0c1716; } }
+:root[data-theme="dark"] .ev.confirmed, :root[data-theme="dark"] .ev.confirmed .orig { color: #0c1716; }
+.ev.proposed { border-style: dashed; border-color: var(--accent); }
+.ev.deadline { border-color: var(--c-rejected); }
+.ev .acts { display: flex; gap: 10px; margin-top: 3px; }
+.cal-list .cal-day { min-height: 0; margin-bottom: 8px; }
+.cal-add { display: grid; grid-template-columns: minmax(0, 1fr) 150px 110px auto; gap: 8px; margin-top: 12px; }
+.ev-move { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.card.flash { outline: 2px solid var(--accent); outline-offset: 2px; }
+.empty-note { color: var(--ink-faint); font-style: italic; font-size: 13px; }
+@media (max-width: 620px) {
+  .inbox-grid { grid-template-columns: minmax(0, 1fr); }
+  .inbox-grid .todos { order: -1; }
+  .reply-row { grid-template-columns: 48px minmax(0, 1fr); }
+  .reply-row .acts { grid-column: 2; justify-content: flex-start; }
+  .todo-add, .cal-add { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- Sprint 6a (I4): the scout's moves and suggestions on a card ---- */
+.scout-move, .scout-suggest {
+  margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.45;
+}
+.scout-move { background: var(--accent-soft); }
+.scout-suggest { border: 1px dashed var(--c-conversation); }
+.scout-move .head, .scout-suggest .head { display: flex; gap: 10px; align-items: baseline; font-weight: 600; color: var(--ink); }
+.scout-move .head .link-btn, .scout-suggest .head .link-btn { margin-left: auto; }
+.scout-move .sub, .scout-suggest .sub { color: var(--ink-soft); }
+.scout-move .why, .scout-suggest .why { color: var(--ink-faint); font-style: italic; }
+.scout-suggest .acts { display: flex; gap: 14px; margin-top: 4px; }
+.log-entry.by-scout .log-at::after { content: "scout"; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 8px; padding: 0 5px; margin-left: 4px; }
+
+/* ---- the log: append-only, stamped entries ---- */
+.log { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line-soft); }
+.log-label {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.log-entry { margin-bottom: 8px; }
+.log-entry:last-child { margin-bottom: 0; }
+.log-at {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.log-at .drop { margin-left: auto; font-size: 11px; padding: 0 2px; }
+.log-text {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 1px 0 0;
+}
+.composer { margin-top: 9px; display: grid; gap: 7px; }
+.composer textarea { min-height: 62px; }
+.composer .row { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+.composer .hintline { font-size: 11.5px; color: var(--ink-faint); margin-left: auto; }
+
+.card-foot { display: flex; align-items: center; gap: 7px; margin-top: 11px; flex-wrap: wrap; }
+select.status {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--stripe);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 9px;
+  cursor: pointer;
+  max-width: 100%;
+}
+.link-btn {
+  font-family: var(--font-body);
+  font-size: 12px;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  border-radius: 5px;
+}
+.link-btn:hover { color: var(--accent); }
+.link-btn.danger:hover { color: var(--c-rejected); }
+.card-foot .spacer { margin-left: auto; }
+
+.editor { margin-top: 10px; display: grid; gap: 9px; }
+label.fl {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+input[type="text"], input[type="date"], textarea, select.plain {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+}
+textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.btn {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: 7px;
+  padding: 8px 15px;
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+/* Only the filled button flips its text for dark; a ghost button keeps the accent,
+   or its label turns near-black on a transparent ground and disappears. */
+:root[data-theme="dark"] .btn:not(.ghost) { color: #0c1716; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn:not(.ghost) { color: #0c1716; } }
+.btn.ghost { background: none; color: var(--accent); }
+
+.adder {
+  margin-top: 16px;
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: 11px;
+  padding: 16px;
+}
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 11px 14px; }
+.adder .wide { grid-column: 1 / -1; }
+.adder .actions { display: flex; gap: 8px; margin-top: 14px; }
+
+.notice {
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  margin-top: 16px;
+}
+.saving {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  min-height: 16px;
+  margin-top: 14px;
+}
+
+.scout-badge {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--c-scout);
+  border: 1px solid var(--c-scout);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.target-badge { color: var(--ink); border-color: var(--ink-soft); }
+.snoozed-note { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+.archive-box { margin-top: 9px; display: grid; gap: 7px; }
+.archive-box .row { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+.card.snoozed { opacity: 0.6; }
+.pack-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 8px; }
+.pack-line .notes { margin: 0; flex: 1 1 100%; overflow-wrap: anywhere; }
+.warn-line b { color: var(--ink-soft); font-weight: 600; }
+/* Sprint 8, BUG-3: a reply's warnings ("asks for money or bank details") wherever the reply appears. */
+.reply-warn { margin-top: 5px; padding: 5px 8px; border-left: 3px solid var(--avg); background: var(--surface-2); border-radius: 4px; font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
+.reply-warn b { color: var(--avg); font-weight: 600; margin-right: 4px; }
+.reply-row.warned { border-color: var(--avg); box-shadow: inset 3px 0 0 var(--avg); }
+/* Sprint 8, H16: the demo board says so on every view. */
+.demo-banner { margin: 0 0 14px; padding: 8px 12px; border: 1px dashed var(--c-scout); border-radius: 8px; color: var(--ink); background: var(--surface); font-size: 14px; }
+.demo-banner b { color: var(--c-scout); text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; margin-right: 8px; }
+
+/* Settings dialog */
+dialog.settings {
+  width: min(860px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+dialog.settings[open] { display: flex; flex-direction: column; }
+dialog.settings::backdrop { background: rgba(10, 16, 15, 0.45); }
+.set-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 18px 20px 6px; }
+.set-head h2 { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin: 0; }
+.set-meta { margin: 2px 0 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); }
+.set-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 20px 0; border-bottom: 1px solid var(--line); }
+.set-tabs button {
+  font: 600 13px var(--font-body); color: var(--ink-soft); background: none; cursor: pointer;
+  border: 1px solid transparent; border-bottom: none; border-radius: 7px 7px 0 0; padding: 7px 12px; margin-bottom: -1px;
+}
+.set-tabs button[aria-selected="true"] { color: var(--ink); background: var(--surface); border-color: var(--line); }
+.set-body { overflow-y: auto; padding: 4px 20px 12px; flex: 1 1 auto; min-height: 200px; }
+.set-group { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 18px 0 8px; font-weight: 700; }
+.set-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px 16px; }
+.set-field.wide { grid-column: 1 / -1; }
+.set-field textarea { font-family: var(--font-mono); font-size: 12.5px; min-height: 60px; }
+.set-field [aria-invalid] { border-color: var(--c-rejected); }
+.set-help { display: block; font-size: 12px; color: var(--ink-faint); margin-top: 3px; }
+.set-switch label.fl { display: flex; align-items: center; gap: 10px; font: 600 15px var(--font-body); text-transform: none; letter-spacing: 0; color: var(--ink); cursor: pointer; }
+.set-switch input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--c-rejected); }
+.paused-note { margin: 10px 0 0; padding: 8px 12px; border: 1px solid var(--c-rejected); border-radius: 8px; color: var(--ink); background: var(--surface-2); font-size: 14px; }
+.paused-note b { color: var(--c-rejected); margin-right: 6px; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; }
+.set-total { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-soft); margin: 8px 0 0; }
+.set-total.bad { color: var(--c-rejected); font-weight: 600; }
+.set-fixed { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 4px 14px; padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 13.5px; }
+.set-fixed:first-of-type { margin-top: 14px; }
+.set-fixed b { color: var(--ink-soft); font-weight: 600; }
+.set-logwrap { margin: 0 20px; font-size: 13px; color: var(--ink-soft); }
+.set-logwrap summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.set-log { margin: 0 0 6px; padding-left: 18px; }
+.set-log li { margin: 3px 0; }
+.set-log .when { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); margin-right: 8px; }
+.set-problems { margin: 6px 20px 0; padding: 8px 10px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--c-rejected); color: var(--c-rejected); font-size: 13px; }
+.set-note { margin: 8px 20px 0; font-size: 12.5px; color: var(--ink-faint); }
+.set-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 20px 18px; }
+.set-actions .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.set-status { font-size: 13px; color: var(--ink-soft); flex: 1 1 260px; }
+@media (max-width: 620px) {
+  .set-head, .set-tabs, .set-body { padding-left: 16px; padding-right: 16px; }
+  .set-fixed { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 1080px) { .col { flex: 1 1 300px; } }
+@media (max-width: 620px) {
+  /* Stacked columns: a collapsed one keeps its full width and folds downwards. */
+  .col { flex: 1 1 100%; }
+  .col.collapsed { flex: 1 1 100%; padding: 12px; align-items: stretch; }
+  .col.collapsed .col-rail { flex-direction: row; gap: 8px; }
+  .rail-label { writing-mode: horizontal-tb; }
+  .col-rail .n { margin-left: auto; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card, .col, .bar { transition: opacity .16s ease, background-color .16s ease, border-color .16s ease, flex-basis .18s ease; }
+}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<script>
+/* Set the theme before first paint, so a dark choice never flashes light. */
+(function () {
+  try {
+    const m = JSON.parse(localStorage.getItem("pipeline.theme"));
+    if (m === "light" || m === "dark") document.documentElement.setAttribute("data-theme", m);
+  } catch (e) { /* storage unavailable: fall back to the viewer's own theme */ }
+})();
+</script>
+
+<div class="wrap">
+  <header>
+    <div class="titlerow">
+      <h1>Application Pipeline (demo)</h1>
+      <div class="theme" id="theme" role="group" aria-label="Colour theme">
+        <button type="button" data-mode="auto">Auto</button>
+        <button type="button" data-mode="light">Light</button>
+        <button type="button" data-mode="dark">Dark</button>
+      </div>
+    </div>
+    <p class="sub">Every role in play, which stage it has reached, and what each company and role actually is. Roles the Job Scout shortlists arrive in Draft with their pack ready; archive the ones you pass on, snooze the ones for later, and move the rest to Applied when you send them. Drag a card between columns, or change its stage from the card itself.</p>
+    <p class="paused-note" id="pausedNote" hidden><b>Paused</b> <span></span></p>
+    <p class="demo-banner" id="demoBanner" hidden><b>Demo</b> A fictional candidate and made-up data. Nothing here is real.</p>
+    <div class="topbar">
+      <div class="count" id="count">Loading the board&hellip;</div>
+      <div class="topbar-actions">
+        <button class="btn ghost" id="showSnoozed" type="button" hidden>Show snoozed</button>
+        <button class="btn ghost" id="foldAll" type="button" hidden>Collapse all</button>
+        <button class="btn ghost" id="toggleAdd" type="button">Add an application</button>
+        <button class="btn ghost" id="openSettings" type="button">Settings</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="views" id="views" aria-label="Views">
+    <button type="button" data-view="board" aria-pressed="true">Board</button>
+    <button type="button" data-view="inbox" aria-pressed="false">Inbox<span class="new" id="inboxNew"></span></button>
+    <button type="button" data-view="calendar" aria-pressed="false">Calendar</button>
+  </nav>
+  <section class="view" id="inboxView" hidden aria-label="Inbox"></section>
+  <section class="view" id="calView" hidden aria-label="Calendar"></section>
+
+  <section class="panel" id="chartPanel">
+    <button class="panel-head" id="chartToggle" type="button" aria-expanded="true" aria-controls="chartBody">
+      <span class="chev" id="chartChev">&#9660;</span>
+      <h2 id="chartTitle">Applications sent, by week</h2>
+      <span class="hint" id="chartHint"></span>
+    </button>
+    <div class="panel-body" id="chartBody">
+      <div class="chart-controls">
+        <span class="cl">Group by</span>
+        <div class="seg" id="bucket" role="group" aria-label="Histogram grouping">
+          <button type="button" data-bucket="day">Day</button>
+          <button type="button" data-bucket="week">Week</button>
+          <button type="button" data-bucket="month">Month</button>
+        </div>
+      </div>
+      <div class="chart" id="chart"></div>
+    </div>
+  </section>
+
+  <form class="adder" id="adder" hidden>
+    <div class="grid2">
+      <div>
+        <label class="fl" for="f-co">Company</label>
+        <input type="text" id="f-co" required autocomplete="off">
+      </div>
+      <div>
+        <label class="fl" for="f-ro">Role</label>
+        <input type="text" id="f-ro" autocomplete="off">
+      </div>
+      <div>
+        <label class="fl" for="f-st">Stage</label>
+        <select class="plain" id="f-st"></select>
+      </div>
+      <div>
+        <label class="fl" for="f-dt">Applied</label>
+        <input type="date" id="f-dt">
+      </div>
+      <div>
+        <label class="fl" for="f-nx">Next step</label>
+        <input type="text" id="f-nx" autocomplete="off">
+      </div>
+      <div>
+        <label class="fl" for="f-ln">Job ad or folder</label>
+        <input type="text" id="f-ln" autocomplete="off">
+      </div>
+      <div class="wide">
+        <label class="fl" for="f-bl">The company and the role</label>
+        <textarea id="f-bl" placeholder="A paragraph: what the company does, what the role owns, where it fits."></textarea>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" type="submit">Add</button>
+      <button class="btn ghost" type="button" id="cancelAdd">Cancel</button>
+    </div>
+  </form>
+
+  <dialog class="settings" id="settingsDlg" aria-labelledby="setTitle">
+    <div class="set-head">
+      <div>
+        <h2 id="setTitle">Job Scout settings</h2>
+        <p class="set-meta" id="setMeta"></p>
+      </div>
+      <button class="link-btn" type="button" id="setClose" aria-label="Close settings">Close</button>
+    </div>
+    <div class="set-tabs" id="setTabs" role="tablist" aria-label="Settings sections"></div>
+    <div class="set-body" id="setBody"></div>
+    <details class="set-logwrap" id="setLogWrap" hidden>
+      <summary>Recent changes</summary>
+      <ul class="set-log" id="setLog"></ul>
+    </details>
+    <p class="set-problems" id="setProblems" role="alert" hidden></p>
+    <p class="set-note">Scoring values apply from the next morning's run. Pay, place, word and sender changes are copied to your PC by that run and apply to the mail read the morning after. Weights and threshold changes raise the rubric version, so the weekly summary can compare results before and after.</p>
+    <div class="set-actions">
+      <button class="btn" type="button" id="setSave">Save</button>
+      <button class="btn ghost" type="button" id="setCancel">Cancel</button>
+      <button class="link-btn" type="button" id="setReset">Reset to the agreed values</button>
+      <span class="set-status" id="setStatus" role="status"></span>
+    </div>
+  </dialog>
+
+  <div class="board" id="board"></div>
+  <div class="notice" id="notice" hidden></div>
+  <div class="saving" id="saving"></div>
+</div>
+
+<script>
+/* Sprint 8 (H16): true only on the separately published demo board. */
+const DEMO_BOARD = true;
+if (DEMO_BOARD) document.getElementById("demoBanner").hidden = false;
+
+const COLUMNS = [
+  { key: "draft",        label: "Draft",           color: "var(--c-draft)",        hint: "Materials being prepared." },
+  { key: "applied",      label: "Applied",         color: "var(--c-applied)",      hint: "Sent, awaiting a reply." },
+  { key: "conversation", label: "In Conversation", color: "var(--c-conversation)", hint: "Screening, interviews, offers." },
+  { key: "rejected",     label: "Rejected",        color: "var(--c-rejected)",     hint: "Closed or withdrawn." },
+  { key: "archived",     label: "Archived",        color: "var(--c-archived)",     hint: "Scouted roles you passed on." }
+];
+// Stages used before the board had four columns.
+const LEGACY = {
+  preparing: "draft", screening: "conversation", interviewing: "conversation",
+  offer: "conversation", closed: "rejected", withdrawn: "rejected"
+};
+const COL = {};
+COLUMNS.forEach(c => COL[c.key] = c);
+const stageOf = s => COL[s] ? s : (LEGACY[s] || "draft");
+/* How the histogram groups applications. `min` and `max` bound how many bars are
+   drawn: enough for the chart to have a shape, capped so the bars stay readable. */
+const BUCKETS = {
+  day: {
+    min: 14, max: 30,
+    start: d => new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+    step: (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; },
+    tick: d => d.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+    name: d => d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }),
+    blurb: "Each bar counts the applications sent on that day; the last bar is today."
+  },
+  week: {
+    min: 8, max: 14,
+    start: d => mondayOf(d),
+    step: (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n * 7); return x; },
+    tick: d => d.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+    name: d => "Week of " + d.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+    blurb: "Each bar counts the applications sent in that week, Monday to Sunday; the last bar is this week."
+  },
+  month: {
+    min: 6, max: 12,
+    start: d => new Date(d.getFullYear(), d.getMonth(), 1),
+    step: (d, n) => new Date(d.getFullYear(), d.getMonth() + n, 1),
+    /* "Oct ’26" rather than "Oct 26", which reads as a day of the month
+       beside the day view's own "Oct 4" ticks. */
+    tick: d => d.toLocaleDateString(undefined, { month: "short" }) +
+               " ’" + String(d.getFullYear()).slice(-2),
+    name: d => d.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+    blurb: "Each bar counts the applications sent in that calendar month; the last bar is this month."
+  }
+};
+const BUCKET_KEYS = ["day", "week", "month"];
+const TARGET_PER_DAY = 3;
+/* How many buckets the rolling average looks back over. */
+const AVG_WINDOW = { day: 7, week: 4, month: 3 };
+const AVG_NAME = { day: "7-day", week: "4-week", month: "3-month" };
+
+const boardEl = document.getElementById("board");
+const countEl = document.getElementById("count");
+const savingEl = document.getElementById("saving");
+const noticeEl = document.getElementById("notice");
+const chartEl = document.getElementById("chart");
+const chartBody = document.getElementById("chartBody");
+const chartToggle = document.getElementById("chartToggle");
+const chartChev = document.getElementById("chartChev");
+const chartHint = document.getElementById("chartHint");
+const chartTitle = document.getElementById("chartTitle");
+const adder = document.getElementById("adder");
+const foldAllBtn = document.getElementById("foldAll");
+const showSnoozedBtn = document.getElementById("showSnoozed");
+let showSnoozed = false;
+const todayIso = () => dayKey(new Date());
+/* A snoozed card is out of the way until its date, then comes back by itself. */
+const isSnoozed = it => !!it.snoozeUntil && it.snoozeUntil > todayIso() && stageOf(it.status) === "draft";
+const isScout = it => it.source === "scout";
+
+/* Pack folders are recorded relative to the Projects folder, e.g.
+   "Professional development\\Acme - VP of Product". */
+/* The demo board knows no one's folders: Copy path gives the pack's path inside the Projects folder (BUG-7). */
+const PROJECTS_ROOT = "";
+const fullPackPath = rel => /^[a-z]:\\/i.test(rel) ? rel : PROJECTS_ROOT + rel.replace(/^[\\/]+/, "");
+const folderLink = rel => "jobscout:open?folder=" + encodeURIComponent(rel.replace(/^Professional development[\\/]/i, ""));
+async function copyPath(path, btn) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(path); ok = true; } catch (e) {}
+  if (!ok) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = path; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      ok = document.execCommand("copy");
+      ta.remove();
+    } catch (e) {}
+  }
+  const was = btn.textContent;
+  btn.textContent = ok ? "Copied" : path;
+  if (ok) setTimeout(() => { btn.textContent = was; }, 1600);
+}
+
+let db = null, canWrite = true, items = [], loaded = false, dragId = null, settingsUnsub = null;
+const editing = new Set();     // cards with the edit fields open
+const composing = new Set();   // cards with the log composer open
+const logOpen = new Set();     // cards showing their earlier log entries
+
+/* ---- per-viewer view state (this browser only) ---- */
+function readStore(k, fallback) {
+  try {
+    const raw = localStorage.getItem(k);
+    return raw === null ? fallback : JSON.parse(raw);
+  } catch (e) { return fallback; }
+}
+function writeStore(k, v) {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ }
+}
+let folded = new Set(readStore("pipeline.folded", ["archived"]) || []);
+let cardsFolded = new Set(readStore("pipeline.cardsFolded", []) || []);
+let chartOpen = readStore("pipeline.chartOpen", true) !== false;
+let bucket = readStore("pipeline.bucket", "week");
+if (BUCKET_KEYS.indexOf(bucket) === -1) bucket = "week";
+let showTarget = readStore("pipeline.showTarget", true) !== false;
+let showAvg = readStore("pipeline.showAvg", true) !== false;
+
+/* ---- theme: auto follows the viewer's own setting, the others override it ---- */
+const MODES = ["auto", "light", "dark"];
+let theme = readStore("pipeline.theme", "auto");
+if (MODES.indexOf(theme) === -1) theme = "auto";
+
+function applyTheme() {
+  const root = document.documentElement;
+  if (theme === "auto") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", theme);
+  const buttons = document.querySelectorAll("#theme button");
+  for (let i = 0; i < buttons.length; i++) {
+    buttons[i].setAttribute("aria-pressed", buttons[i].dataset.mode === theme ? "true" : "false");
+  }
+}
+document.querySelectorAll("#theme button").forEach(b => {
+  b.addEventListener("click", () => {
+    theme = b.dataset.mode;
+    writeStore("pipeline.theme", theme);
+    applyTheme();
+  });
+});
+applyTheme();
+
+function fillStageSelect(sel, value) {
+  sel.innerHTML = "";
+  COLUMNS.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.key;
+    o.textContent = c.label;
+    if (c.key === value) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+fillStageSelect(document.getElementById("f-st"), "draft");
+
+function say(msg) {
+  savingEl.textContent = msg;
+  if (msg) setTimeout(() => { if (savingEl.textContent === msg) savingEl.textContent = ""; }, 2600);
+}
+
+function parseDay(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const d = new Date(iso + "T00:00:00");
+  return isNaN(d) ? null : d;
+}
+function fmtDate(iso) {
+  const d = parseDay(iso);
+  if (!d) return iso || "";
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+function mondayOf(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+}
+function dayKey(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") +
+         "-" + String(d.getDate()).padStart(2, "0");
+}
+function shortDate(d) {
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+function fmtStamp(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso || "");
+  return d.toLocaleString(undefined, {
+    weekday: "short", day: "numeric", month: "short",
+    hour: "2-digit", minute: "2-digit"
+  });
+}
+
+/* ---- the log on a role: an array of {at, text}, newest first on screen ---- */
+function logOf(it) {
+  if (!Array.isArray(it.log)) return [];
+  return it.log
+    .filter(e => e && typeof e.text === "string")
+    .slice()
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+}
+function addLog(id, text) {
+  const it = items.find(x => x.id === id);
+  const body = String(text || "").trim();
+  if (!it || !body) return;
+  const entry = { at: new Date().toISOString(), text: body };
+  const log = (Array.isArray(it.log) ? it.log : []).concat([entry]);
+  composing.delete(id);
+  save(id, { log: log }, "Note added");
+}
+function removeLog(id, at) {
+  const it = items.find(x => x.id === id);
+  if (!it || !Array.isArray(it.log)) return;
+  save(id, { log: it.log.filter(e => !e || e.at !== at) }, "Note removed");
+}
+
+/* A target of three a day, expressed in the units of whichever bucket is shown.
+   Months use their own length, so February's bar sits a little lower. */
+function targetFor(start) {
+  if (bucket === "day") return TARGET_PER_DAY;
+  if (bucket === "week") return TARGET_PER_DAY * 7;
+  return TARGET_PER_DAY * new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+}
+
+/* ---- the histogram ---- */
+function renderChart() {
+  chartEl.innerHTML = "";
+  chartBody.hidden = !chartOpen;
+  chartToggle.setAttribute("aria-expanded", chartOpen ? "true" : "false");
+  chartChev.innerHTML = chartOpen ? "&#9660;" : "&#9654;";
+  document.querySelectorAll("#bucket button").forEach(b => {
+    b.setAttribute("aria-pressed", b.dataset.bucket === bucket ? "true" : "false");
+  });
+  chartTitle.textContent = "Applications sent, by " + bucket;
+
+  const dated = items.map(i => parseDay(i.applied)).filter(Boolean);
+  const undated = items.length - dated.length;
+  chartHint.textContent = items.length === 0 ? "" :
+    dated.length + (dated.length === 1 ? " dated" : " dated") + (undated ? " · " + undated + " undated" : "");
+  if (!chartOpen) return;
+
+  if (!loaded) {
+    const p = document.createElement("p");
+    p.className = "caption";
+    p.textContent = "Loading…";
+    chartEl.appendChild(p);
+    return;
+  }
+  if (dated.length === 0) {
+    const p = document.createElement("p");
+    p.className = "caption";
+    p.textContent = items.length === 0
+      ? "Nothing tracked yet, so there is nothing to plot. Add an application to start the chart."
+      : "None of the tracked applications has a date recorded, so there is nothing to plot yet. Add one with Edit on a card.";
+    chartEl.appendChild(p);
+    return;
+  }
+
+  const cfg = BUCKETS[bucket] || BUCKETS.week;
+  const current = cfg.start(new Date());
+  const earliest = cfg.start(new Date(Math.min.apply(null, dated.map(d => d.getTime()))));
+
+  /* Step back a bucket at a time rather than dividing milliseconds, so months of
+     different lengths and the clocks going back do not shift a bar. */
+  let span = 1, probe = current;
+  while (probe.getTime() > earliest.getTime() && span < cfg.max) {
+    probe = cfg.step(probe, -1);
+    span++;
+  }
+  const n = Math.min(cfg.max, Math.max(cfg.min, span));
+
+  const weeks = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const w = cfg.step(current, -i);
+    weeks.push({ start: w, key: dayKey(w), count: 0 });
+  }
+  const index = {};
+  weeks.forEach(w => index[w.key] = w);
+  let plotted = 0;
+  dated.forEach(d => {
+    const w = index[dayKey(cfg.start(d))];
+    if (w) { w.count++; plotted++; }
+  });
+
+  weeks.forEach(w => { w.target = targetFor(w.start); });
+
+  const win = AVG_WINDOW[bucket] || 4;
+  weeks.forEach((w, i) => {
+    if (i + 1 < win) { w.avg = null; return; }
+    let sum = 0;
+    for (let k = i + 1 - win; k <= i; k++) sum += weeks[k].count;
+    w.avg = sum / win;
+  });
+
+  /* The target has to share the bars' scale or the line would be a decoration. */
+  const ceiling = Math.max(
+    1,
+    Math.max.apply(null, weeks.map(w => w.count)),
+    showTarget ? Math.max.apply(null, weeks.map(w => w.target)) : 0
+  );
+  const step = ceiling <= 4 ? 1 : Math.ceil(ceiling / 4);
+  const top = Math.ceil(ceiling / step) * step;
+
+  const plot = document.createElement("div");
+  plot.className = "plot" + (weeks.length > 16 ? " dense" : "");
+
+  const grid = document.createElement("div");
+  grid.className = "gridlines";
+  for (let v = 0; v <= top; v += step) {
+    const g = document.createElement("div");
+    g.className = "gridline";
+    g.style.bottom = (v / top * 100) + "%";
+    const lab = document.createElement("span");
+    lab.textContent = String(v);
+    g.appendChild(lab);
+    grid.appendChild(g);
+  }
+  plot.appendChild(grid);
+
+  const nowKey = dayKey(current);
+  weeks.forEach(w => {
+    const col = document.createElement("div");
+    col.className = "barcol" + (w.key === nowKey ? " now" : "");
+    col.dataset.n = String(w.count);
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    bar.style.height = w.count === 0 ? "2px" : ((w.count / top) * 100) + "%";
+    col.appendChild(bar);
+    if (w.count > 0) {
+      const val = document.createElement("span");
+      val.className = "val";
+      val.textContent = String(w.count);
+      val.style.bottom = "calc(" + ((w.count / top) * 100) + "% + 3px)";
+      col.appendChild(val);
+    }
+    const label = cfg.name(w.start) + " — " +
+      w.count + (w.count === 1 ? " application" : " applications");
+    col.setAttribute("aria-label", label);
+    col.addEventListener("mouseenter", () => showTip(col, label));
+    col.addEventListener("mouseleave", hideTip);
+    plot.appendChild(col);
+  });
+  chartEl.appendChild(plot);
+  /* After the plot is in the document, so the overlay can measure itself. */
+  if (showTarget || showAvg) drawOverlay(plot, weeks, top);
+
+  const axis = document.createElement("div");
+  axis.className = "xaxis";
+  const every = Math.max(1, Math.ceil(weeks.length / 9));
+  weeks.forEach((w, i) => {
+    const t = document.createElement("div");
+    t.className = "xtick";
+    const fromEnd = weeks.length - 1 - i;
+    t.textContent = (fromEnd % every === 0) ? cfg.tick(w.start) : "";
+    axis.appendChild(t);
+  });
+  chartEl.appendChild(axis);
+
+  chartEl.appendChild(legend());
+
+  const cap = document.createElement("p");
+  cap.className = "caption";
+  const bits = [cfg.blurb];
+  if (undated > 0) {
+    bits.push(undated + (undated === 1 ? " application has" : " applications have") +
+      " no date recorded and " + (undated === 1 ? "is" : "are") + " not plotted.");
+  }
+  if (showTarget) {
+    bits.push("The red dashed line is a target of " + TARGET_PER_DAY + " a day" +
+      (bucket === "week" ? ", so " + TARGET_PER_DAY * 7 + " a week."
+       : bucket === "month" ? ", scaled to each month's length." : "."));
+  }
+  if (showAvg) {
+    bits.push("The orange dotted line is a " + (AVG_NAME[bucket] || "rolling") +
+      " rolling average; it runs just above the axis while the average is zero, and " +
+      "starts only once there are enough bars to fill the window.");
+  }
+  if (plotted < dated.length) {
+    bits.push((dated.length - plotted) + (dated.length - plotted === 1 ? " falls" : " fall") + " outside the " + weeks.length + " bars shown.");
+  }
+  cap.textContent = bits.join(" ");
+  chartEl.appendChild(cap);
+}
+
+/* The lines live in one SVG laid over the plot area, drawn in real pixels: a
+   viewBox stretched with preserveAspectRatio="none" distorts dash lengths along
+   the path, which turned a fine dotted line into a few far-apart specks. Pixel
+   coordinates cost a redraw on resize, which the listener at the end handles. */
+const SVGNS = "http://www.w3.org/2000/svg";
+
+function drawOverlay(plot, weeks, top) {
+  /* An <svg> is a replaced element: with every inset set but no width or height
+     it falls back to its intrinsic 300x150 rather than stretching, which put its
+     bottom edge below the axis. So take the size from the plot's own box and the
+     padding that holds the bars, and leave nothing to the fallback. */
+  const cs = getComputedStyle(plot);
+  const pad = { left: parseFloat(cs.paddingLeft) || 0, top: parseFloat(cs.paddingTop) || 0 };
+  const borderBottom = parseFloat(cs.borderBottomWidth) || 0;
+  const pb = plot.getBoundingClientRect();
+  const w = pb.width - pad.left;
+  const h = pb.height - pad.top - borderBottom;
+  if (!(w > 0) || !(h > 0)) return;
+
+  const svg = document.createElementNS(SVGNS, "svg");
+  svg.setAttribute("class", "overlay");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("viewBox", "0 0 " + w.toFixed(1) + " " + h.toFixed(1));
+  svg.style.left = pad.left + "px";
+  svg.style.top = pad.top + "px";
+  svg.style.width = w + "px";
+  svg.style.height = h + "px";
+  plot.appendChild(svg);
+
+  const n = weeks.length;
+  const x = i => ((i + 0.5) / n) * w;
+
+  /* The 2px stroke is painted centred on the path, so a run of zeros drawn at
+     exactly the axis would put a pixel below it and read as a negative average.
+     Keeping the path 2px clear of each edge holds the whole stroke inside. */
+  const y = v => {
+    const raw = h - (Math.min(Math.max(v, 0), top) / top) * h;
+    return Math.min(Math.max(raw, 2), h - 2);
+  };
+
+  const line = (points, stroke, pattern) => {
+    if (points.length < 2) return null;
+    const path = document.createElementNS(SVGNS, "polyline");
+    path.setAttribute("points", points.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" "));
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", stroke);
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("stroke-linejoin", "round");
+    if (pattern === "dot") {
+      /* Round caps on a zero-length dash give round dots. */
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-dasharray", "0 5");
+    } else {
+      path.setAttribute("stroke-linecap", "butt");
+      path.setAttribute("stroke-dasharray", "7 5");
+    }
+    return path;
+  };
+
+  if (showTarget) {
+    /* Drawn edge to edge rather than between bar centres: it is a level, not a series. */
+    const pts = [];
+    weeks.forEach((wk, i) => {
+      pts.push([(i / n) * w, y(wk.target)], [((i + 1) / n) * w, y(wk.target)]);
+    });
+    const path = line(pts, "var(--target)", "dash");
+    if (path) svg.appendChild(path);
+  }
+
+  if (showAvg) {
+    const pts = [];
+    weeks.forEach((wk, i) => { if (wk.avg !== null) pts.push([x(i), y(wk.avg)]); });
+    const path = line(pts, "var(--avg)", "dot");
+    if (path) svg.appendChild(path);
+    if (pts.length) {
+      const dot = document.createElementNS(SVGNS, "circle");
+      const last = pts[pts.length - 1];
+      dot.setAttribute("cx", last[0].toFixed(1));
+      dot.setAttribute("cy", last[1].toFixed(1));
+      dot.setAttribute("r", "2.6");
+      dot.setAttribute("fill", "var(--avg)");
+      svg.appendChild(dot);
+    }
+  }
+}
+
+/* The legend is also the switch: the target can outscale the bars several times
+   over, so being able to drop it is what keeps the chart readable. */
+function legend() {
+  const box = document.createElement("div");
+  box.className = "legend";
+
+  const bars = document.createElement("span");
+  bars.className = "key";
+  const bsw = document.createElement("span");
+  bsw.className = "swatch fill";
+  bsw.style.background = "var(--bar)";
+  bars.append(bsw, document.createTextNode("Applications sent"));
+  box.appendChild(bars);
+
+  const toggle = (label, colour, style, on, flip) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "key";
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    const sw = document.createElement("span");
+    sw.className = "swatch";
+    sw.style.borderTopColor = colour;
+    sw.style.borderTopStyle = style;
+    b.append(sw, document.createTextNode(label));
+    b.addEventListener("click", flip);
+    return b;
+  };
+
+  box.appendChild(toggle(
+    "Target, " + TARGET_PER_DAY + " a day", "var(--target)", "dashed", showTarget,
+    () => { showTarget = !showTarget; writeStore("pipeline.showTarget", showTarget); renderChart(); }));
+
+  box.appendChild(toggle(
+    (AVG_NAME[bucket] || "Rolling") + " average", "var(--avg)", "dotted", showAvg,
+    () => { showAvg = !showAvg; writeStore("pipeline.showAvg", showAvg); renderChart(); }));
+
+  return box;
+}
+
+let tipEl = null;
+function showTip(anchor, text) {
+  hideTip();
+  tipEl = document.createElement("div");
+  tipEl.className = "tip";
+  tipEl.textContent = text;
+  tipEl.style.left = (anchor.offsetLeft + anchor.offsetWidth / 2) + "px";
+  tipEl.style.top = (anchor.offsetTop - 4) + "px";
+  (anchor.offsetParent || chartEl).appendChild(tipEl);
+  const box = tipEl.getBoundingClientRect();
+  const wrapBox = chartEl.getBoundingClientRect();
+  if (box.left < wrapBox.left) tipEl.style.transform = "translate(0, -100%)";
+  else if (box.right > wrapBox.right) tipEl.style.transform = "translate(-100%, -100%)";
+}
+function hideTip() {
+  if (tipEl && tipEl.parentNode) tipEl.parentNode.removeChild(tipEl);
+  tipEl = null;
+}
+
+chartToggle.addEventListener("click", () => {
+  chartOpen = !chartOpen;
+  writeStore("pipeline.chartOpen", chartOpen);
+  renderChart();
+});
+
+document.querySelectorAll("#bucket button").forEach(b => {
+  b.addEventListener("click", () => {
+    bucket = b.dataset.bucket;
+    writeStore("pipeline.bucket", bucket);
+    renderChart();
+  });
+});
+
+let chartResize = null;
+window.addEventListener("resize", () => {
+  clearTimeout(chartResize);
+  chartResize = setTimeout(renderChart, 150);
+});
+
+/* ---- the board ---- */
+function render() {
+  boardEl.innerHTML = "";
+  COLUMNS.forEach(col => boardEl.appendChild(renderColumn(col)));
+  if (!loaded && items.length === 0) {
+    countEl.textContent = "Loading the board…";
+  } else if (items.length === 0) {
+    countEl.innerHTML = "Nothing tracked yet. Use <b>Add an application</b> to record the first role.";
+  } else {
+    const live = items.filter(i => ["rejected", "archived"].indexOf(stageOf(i.status)) === -1).length;
+    const talking = items.filter(i => stageOf(i.status) === "conversation").length;
+    const scouted = items.filter(i => isScout(i) && stageOf(i.status) === "draft" && !isSnoozed(i)).length;
+    countEl.innerHTML = "<b>" + items.length + "</b> roles · <b>" + live +
+      "</b> still live · <b>" + talking + "</b> in conversation" +
+      (scouted ? " · <b>" + scouted + "</b> scouted to review" : "");
+  }
+  /* The control says what it will do, not what the cards are, so its label is
+     driven by whether anything is still open rather than by a stored flag. */
+  const anyOpen = items.some(i => !cardsFolded.has(i.id));
+  foldAllBtn.hidden = items.length === 0;
+  const snoozedCount = items.filter(isSnoozed).length;
+  showSnoozedBtn.hidden = snoozedCount === 0;
+  showSnoozedBtn.textContent = (showSnoozed ? "Hide snoozed" : "Show snoozed") + " (" + snoozedCount + ")";
+  foldAllBtn.textContent = anyOpen ? "Collapse all" : "Expand all";
+  foldAllBtn.setAttribute("aria-label", anyOpen ? "Collapse every card" : "Expand every card");
+  renderChart();
+}
+
+function setFolded(key, on) {
+  if (on) folded.add(key); else folded.delete(key);
+  writeStore("pipeline.folded", Array.from(folded));
+  render();
+}
+
+function persistCards() {
+  writeStore("pipeline.cardsFolded", Array.from(cardsFolded));
+  render();
+}
+function setCardFolded(id, on) {
+  if (on) {
+    cardsFolded.add(id);
+    /* Folding away an open editor or composer would otherwise spring it back
+       on expand, with a half-typed note still in it. */
+    editing.delete(id);
+    composing.delete(id);
+  } else {
+    cardsFolded.delete(id);
+  }
+  persistCards();
+}
+function setAllCardsFolded(on) {
+  if (on) {
+    items.forEach(i => {
+      cardsFolded.add(i.id);
+      editing.delete(i.id);
+      composing.delete(i.id);
+    });
+  } else {
+    cardsFolded.clear();
+  }
+  persistCards();
+}
+
+showSnoozedBtn.addEventListener("click", () => { showSnoozed = !showSnoozed; render(); });
+
+foldAllBtn.addEventListener("click", () => {
+  setAllCardsFolded(items.some(i => !cardsFolded.has(i.id)));
+});
+
+function renderColumn(col) {
+  const mine = items
+    .filter(i => stageOf(i.status) === col.key && (showSnoozed || !isSnoozed(i)))
+    .sort((a, b) => (b.applied || "").localeCompare(a.applied || "") ||
+                    (a.company || "").localeCompare(b.company || ""));
+  const isFolded = folded.has(col.key);
+
+  const el = document.createElement("section");
+  el.className = "col" + (isFolded ? " collapsed" : "");
+  el.style.setProperty("--stripe", col.color);
+
+  if (isFolded) {
+    const rail = document.createElement("button");
+    rail.type = "button";
+    rail.className = "col-rail";
+    rail.setAttribute("aria-expanded", "false");
+    rail.title = "Open the " + col.label + " column";
+    const dot = document.createElement("span"); dot.className = "dot";
+    const lab = document.createElement("span"); lab.className = "rail-label"; lab.textContent = col.label;
+    const n = document.createElement("span"); n.className = "n"; n.textContent = String(mine.length);
+    rail.append(dot, lab, n);
+    rail.addEventListener("click", () => setFolded(col.key, false));
+    el.appendChild(rail);
+  } else {
+    const head = document.createElement("div");
+    head.className = "col-head";
+    const fold = document.createElement("button");
+    fold.type = "button";
+    fold.className = "fold";
+    fold.innerHTML = "&#9664;";
+    fold.setAttribute("aria-expanded", "true");
+    fold.title = "Fold the " + col.label + " column away";
+    fold.setAttribute("aria-label", "Fold the " + col.label + " column away");
+    fold.addEventListener("click", () => setFolded(col.key, true));
+    const dot = document.createElement("span"); dot.className = "dot";
+    const h2 = document.createElement("h2"); h2.textContent = col.label;
+    const n = document.createElement("span"); n.className = "n"; n.textContent = String(mine.length);
+    head.append(fold, dot, h2, n);
+    el.appendChild(head);
+
+    if (mine.length === 0) {
+      const e = document.createElement("div");
+      e.className = "col-empty";
+      e.textContent = loaded ? col.hint : "…";
+      el.appendChild(e);
+    } else {
+      mine.forEach(it => el.appendChild(renderCard(it, col)));
+    }
+  }
+
+  if (canWrite) {
+    el.addEventListener("dragover", e => {
+      if (dragId === null) return;
+      e.preventDefault();
+      el.classList.add("is-over");
+    });
+    el.addEventListener("dragleave", e => {
+      if (!el.contains(e.relatedTarget)) el.classList.remove("is-over");
+    });
+    el.addEventListener("drop", e => {
+      e.preventDefault();
+      el.classList.remove("is-over");
+      const id = dragId;
+      dragId = null;
+      if (!id) return;
+      const it = items.find(x => x.id === id);
+      if (!it || stageOf(it.status) === col.key) return;
+      moveTo(it, col.key);
+    });
+  }
+  return el;
+}
+
+function renderCard(it, col) {
+  const isFolded = cardsFolded.has(it.id);
+  const card = document.createElement("article");
+  card.className = "card" + (col.key === "rejected" || col.key === "archived" ? " muted" : "") +
+    (isFolded ? " folded" : "") + (isSnoozed(it) ? " snoozed" : "");
+  card.style.setProperty("--stripe", col.color);
+  card.id = "card-" + it.id;
+
+  const head = document.createElement("div");
+  head.className = "card-head";
+
+  if (canWrite) {
+    const grip = document.createElement("button");
+    grip.type = "button";
+    grip.className = "grip";
+    grip.draggable = true;
+    grip.textContent = "∷";
+    grip.title = "Drag to another column";
+    grip.setAttribute("aria-label", "Drag " + (it.company || "this card") + " to another column");
+    grip.addEventListener("dragstart", e => {
+      dragId = it.id;
+      card.classList.add("is-dragging");
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", it.id);
+        if (e.dataTransfer.setDragImage) e.dataTransfer.setDragImage(card, 20, 20);
+      }
+    });
+    grip.addEventListener("dragend", () => {
+      dragId = null;
+      card.classList.remove("is-dragging");
+      document.querySelectorAll(".col.is-over").forEach(c => c.classList.remove("is-over"));
+    });
+    head.appendChild(grip);
+  }
+
+  const titles = document.createElement("div");
+  titles.className = "titles";
+  const co = document.createElement("p"); co.className = "co"; co.textContent = it.company || "Untitled";
+  const ro = document.createElement("p"); ro.className = "ro"; ro.textContent = it.role || "";
+  titles.append(co, ro);
+  head.appendChild(titles);
+
+  const foldBtn = document.createElement("button");
+  foldBtn.type = "button";
+  foldBtn.className = "card-fold";
+  foldBtn.innerHTML = isFolded ? "&#9654;" : "&#9660;";
+  foldBtn.setAttribute("aria-expanded", isFolded ? "false" : "true");
+  const who = it.company || "this application";
+  foldBtn.title = (isFolded ? "Expand " : "Collapse ") + who;
+  foldBtn.setAttribute("aria-label", foldBtn.title);
+  foldBtn.addEventListener("click", () => setCardFolded(it.id, !isFolded));
+  head.appendChild(foldBtn);
+
+  card.appendChild(head);
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  if (isScout(it)) {
+    const b = document.createElement("span");
+    b.className = "scout-badge";
+    b.textContent = "Scout " + (it.score != null ? it.score : "");
+    b.title = "Shortlisted by the Job Scout" + (it.runDate ? " on " + fmtDate(it.runDate) : "");
+    meta.appendChild(b);
+    if (it.target) {
+      const tg = document.createElement("span");
+      tg.className = "scout-badge target-badge";
+      tg.textContent = "Target";
+      tg.title = "A target employer (" + it.target + "), set in Settings";
+      meta.appendChild(tg);
+    }
+    /* H6: lines the independent reviewer left for your sign-off. */
+    if (typeof it.reviewFlags === "number" && it.reviewFlags > 0) {
+      const rf = document.createElement("span");
+      rf.className = "scout-badge target-badge";
+      rf.textContent = it.reviewFlags + " to sign off";
+      rf.title = "Lines the reviewer could not match to your career notes: see For your sign-off in the fit-and-gap";
+      meta.appendChild(rf);
+    }
+  }
+  if (isScout(it)) {
+    /* Where it came from and how fresh it is (D4). LinkedIn's alerts carry no
+       posting date or applicant count, so those appear only once the advert has
+       been read. */
+    const bits = [];
+    if (it.site) bits.push("via " + (SITE_NAMES[it.site] || it.site));
+    if (it.posted) bits.push("posted " + fmtDate(it.posted));
+    else if (it.alerted) bits.push("alerted " + fmtDate(it.alerted));
+    if (it.applicants != null && it.applicants !== "") bits.push(it.applicants + " applicants");
+    if (typeof it.atsMatch === "number") bits.push("ATS match " + it.atsMatch + "%");
+    if (bits.length) {
+      const src = document.createElement("span");
+      src.className = "snoozed-note";
+      src.textContent = bits.join(" · ");
+      meta.appendChild(src);
+    }
+  }
+  if (isSnoozed(it)) {
+    const z = document.createElement("span");
+    z.className = "snoozed-note";
+    z.textContent = "Snoozed until " + fmtDate(it.snoozeUntil);
+    meta.appendChild(z);
+  }
+  if (it.applied) {
+    const s = document.createElement("span");
+    s.textContent = "Applied " + fmtDate(it.applied);
+    meta.appendChild(s);
+  }
+  if (it.link) {
+    if (/^https?:\/\//i.test(it.link)) {
+      const a = document.createElement("a");
+      a.href = it.link; a.target = "_blank"; a.rel = "noopener";
+      a.textContent = "Job ad";
+      meta.appendChild(a);
+    } else {
+      const s = document.createElement("span");
+      s.className = "loc";
+      s.textContent = it.link;
+      meta.appendChild(s);
+    }
+  }
+  if (meta.childNodes.length) card.appendChild(meta);
+
+  /* Folded: the title, the dates and the one line that says what is owed. The
+     stage still changes by dragging the card, which needs no footer. */
+  if (isFolded) {
+    if (it.next) {
+      const peek = document.createElement("p");
+      peek.className = "next-peek";
+      const b = document.createElement("b");
+      b.textContent = "Next";
+      peek.append(b, document.createTextNode(it.next));
+      peek.title = it.next;
+      card.appendChild(peek);
+    }
+    return card;
+  }
+
+  if (it.blurb) {
+    const p = document.createElement("p");
+    p.className = "blurb";
+    p.textContent = it.blurb;
+    card.appendChild(p);
+  }
+
+  if (it.next) {
+    const nx = document.createElement("div");
+    nx.className = "next";
+    const b = document.createElement("b"); b.textContent = "Next";
+    const t = document.createElement("span"); t.textContent = it.next;
+    nx.append(b, t);
+    card.appendChild(nx);
+  }
+
+  const warns = Array.isArray(it.warnings) ? it.warnings.filter(Boolean) : [];
+  if (warns.length) {
+    const wn = document.createElement("p");
+    wn.className = "notes warn-line";
+    const b = document.createElement("b"); b.textContent = "Watch: ";
+    wn.append(b, document.createTextNode(warns.join(" ")));
+    card.appendChild(wn);
+  }
+
+  if (it.pack) {
+    /* Open the pack's folder in File Explorer (F6). Browsers will not open a
+       folder from a web page, so the link uses a jobscout: address that a
+       one-off Windows set-up hands to Explorer (Job Scout README). Copy path
+       is the fallback that always works. */
+    const pk = document.createElement("div");
+    pk.className = "pack-line";
+    const lab = document.createElement("span");
+    lab.className = "notes";
+    lab.textContent = "Pack: " + it.pack;
+    const open = document.createElement("a");
+    open.className = "link-btn";
+    open.href = folderLink(it.pack);
+    open.target = "_blank";
+    open.rel = "noopener";
+    open.textContent = "Open folder";
+    open.title = "Opens the folder in File Explorer (needs the one-off set-up on this computer)";
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "link-btn";
+    copy.textContent = "Copy path";
+    copy.addEventListener("click", () => copyPath(fullPackPath(it.pack), copy));
+    // BUG-7: a demo pack lives in Job Scout\data\demo, outside the folders the Open folder link knows.
+    if (/^Professional development[\\/]/i.test(it.pack)) pk.append(lab, open, copy); else pk.append(lab, copy);
+    card.appendChild(pk);
+  }
+
+  if (it.notes) {
+    const nt = document.createElement("p");
+    nt.className = "notes";
+    nt.textContent = it.notes;
+    card.appendChild(nt);
+  }
+
+  scoutBoxes(it).forEach(b => card.appendChild(b));
+
+  const entries = logOf(it);
+  if (entries.length) {
+    const box = document.createElement("div");
+    box.className = "log";
+    const lab = document.createElement("span");
+    lab.className = "log-label";
+    lab.textContent = entries.length === 1 ? "Log" : "Log · " + entries.length + " entries";
+    box.appendChild(lab);
+
+    const expanded = logOpen.has(it.id);
+    (expanded ? entries : entries.slice(0, 1)).forEach(e => box.appendChild(logEntry(it.id, e)));
+
+    if (entries.length > 1) {
+      const more = document.createElement("button");
+      more.type = "button";
+      more.className = "link-btn";
+      more.textContent = expanded ? "Hide earlier" : "Show " + (entries.length - 1) + " earlier";
+      more.addEventListener("click", () => {
+        if (expanded) logOpen.delete(it.id); else logOpen.add(it.id);
+        render();
+      });
+      box.appendChild(more);
+    }
+    card.appendChild(box);
+  }
+
+  const foot = document.createElement("div");
+  foot.className = "card-foot";
+  const sel = document.createElement("select");
+  sel.className = "status";
+  sel.id = "stage-" + it.id;
+  sel.style.setProperty("--stripe", col.color);
+  sel.setAttribute("aria-label", "Stage for " + (it.company || "this application"));
+  fillStageSelect(sel, col.key);
+  sel.disabled = !canWrite;
+  sel.addEventListener("change", () => moveTo(it, sel.value));
+  foot.appendChild(sel);
+
+  if (canWrite && stageOf(it.status) === "draft") {
+    const arch = document.createElement("button");
+    arch.type = "button";
+    arch.className = "link-btn";
+    arch.textContent = archiving.has(it.id) ? "Keep" : "Archive";
+    arch.title = "Pass on this role: it moves to Archived, with your reason if you give one";
+    arch.addEventListener("click", () => {
+      if (archiving.has(it.id)) archiving.delete(it.id); else archiving.add(it.id);
+      render();
+    });
+    foot.appendChild(arch);
+    const snooze = document.createElement("button");
+    snooze.type = "button";
+    snooze.className = "link-btn";
+    snooze.textContent = isSnoozed(it) ? "Wake" : "Snooze 7 days";
+    snooze.addEventListener("click", () => {
+      if (isSnoozed(it)) {
+        save(it.id, { snoozeUntil: "", log: withLog(it, "Woken from snooze") }, "Back in Draft");
+      } else {
+        const until = new Date(); until.setDate(until.getDate() + 7);
+        save(it.id, { snoozeUntil: dayKey(until), log: withLog(it, "Snoozed until " + dayKey(until)) }, "Snoozed for 7 days");
+      }
+    });
+    foot.appendChild(snooze);
+  }
+
+  if (canWrite) {
+    const note = document.createElement("button");
+    note.type = "button";
+    note.className = "link-btn";
+    note.textContent = composing.has(it.id) ? "Close note" : "Add note";
+    note.addEventListener("click", () => {
+      if (composing.has(it.id)) composing.delete(it.id); else composing.add(it.id);
+      render();
+    });
+    foot.appendChild(note);
+
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "link-btn spacer";
+    edit.textContent = editing.has(it.id) ? "Done" : "Edit";
+    edit.addEventListener("click", () => {
+      if (editing.has(it.id)) editing.delete(it.id); else editing.add(it.id);
+      render();
+    });
+    foot.appendChild(edit);
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "link-btn danger";
+    del.textContent = "Remove";
+    del.setAttribute("aria-label", "Remove " + (it.company || "this application"));
+    del.addEventListener("click", () => remove(it.id, it.company));
+    foot.appendChild(del);
+  }
+  card.appendChild(foot);
+
+  if (canWrite && archiving.has(it.id)) card.appendChild(archiveBox(it));
+  if (canWrite && composing.has(it.id)) card.appendChild(composer(it.id));
+
+  if (canWrite && editing.has(it.id)) {
+    const ed = document.createElement("div");
+    ed.className = "editor";
+    ed.append(
+      field(it.id, "next", "Next step", it.next || "", "text"),
+      field(it.id, "blurb", "The company and the role", it.blurb || "", "area"),
+      field(it.id, "notes", "Notes", it.notes || "", "area"),
+      field(it.id, "applied", "Applied", it.applied || "", "date"),
+      field(it.id, "link", "Job ad or folder", it.link || "", "text"),
+      field(it.id, "pack", "Pack folder", it.pack || "", "text")
+    );
+    card.appendChild(ed);
+  }
+  return card;
+}
+
+/* ---- Sprint 6a (I4): replies to applications ----
+   The scout either MOVES a card by fixed rules (logged, with Undo while the card
+   is where it put it) or SUGGESTS a move (Confirm or Dismiss; nothing changes
+   until confirmed). Every choice is logged with the reply's id, so the scout
+   never acts on the same reply twice. */
+const STATUS_CHANGE = e => e && (e.move || e.undo || e.confirmed || /^(Moved to |Archived)/.test(e.text || ""));
+
+function lastScoutMove(it) {
+  const log = Array.isArray(it.log) ? it.log : [];
+  let last = null;
+  for (const e of log) if (STATUS_CHANGE(e)) last = e;
+  if (!last || last.by !== "scout" || !last.move) return null;
+  return stageOf(it.status) === last.move.to ? last : null;
+}
+
+function shortDay(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? "an undated email" : d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function scoutBoxes(it) {
+  const out = [];
+  const mv = lastScoutMove(it);
+  if (mv) {
+    const box = document.createElement("div");
+    box.className = "scout-move";
+    const head = document.createElement("div");
+    head.className = "head";
+    head.append(document.createTextNode("Moved by the scout"));
+    if (canWrite) {
+      const undo = document.createElement("button");
+      undo.type = "button";
+      undo.className = "link-btn";
+      undo.textContent = "Undo";
+      undo.title = "Put the card back where it was; the scout will not move it for this email again";
+      undo.addEventListener("click", () => undoScout(it, mv));
+      head.appendChild(undo);
+    }
+    const sub = document.createElement("div");
+    sub.className = "sub";
+    sub.textContent = COL[mv.move.from].label + " to " + COL[mv.move.to].label;
+    const why = document.createElement("div");
+    why.className = "why";
+    why.textContent = (mv.type || "reply") + ", email of " + shortDay(mv.emailDate);
+    box.append(head, sub, why);
+    out.push(box);
+  }
+  for (const sg of (Array.isArray(it.suggestions) ? it.suggestions : [])) {
+    if (!sg || !COL[sg.to]) continue;
+    const box = document.createElement("div");
+    box.className = "scout-suggest";
+    const head = document.createElement("div");
+    head.className = "head";
+    head.textContent = "Suggested: " + COL[sg.to].label;
+    const sub = document.createElement("div");
+    sub.className = "why";
+    const note = String(sg.note || "");
+    const wi = note.indexOf("Warning:");
+    sub.textContent = (sg.type || "reply") + ", email of " + shortDay(sg.emailDate) + (note && wi !== 0 ? "; " + (wi > 0 ? note.slice(0, wi).replace(/[\s.;]+$/, "") : note) : "");
+    box.append(head, sub);
+    if (wi >= 0) { const wb = warnBox([note.slice(wi + 8).trim().replace(/\.$/, "")]); if (wb) box.appendChild(wb); }
+    if (canWrite) {
+      const acts = document.createElement("div");
+      acts.className = "acts";
+      const ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = "link-btn";
+      ok.textContent = "Confirm";
+      ok.disabled = stageOf(it.status) !== sg.from;
+      ok.title = ok.disabled ? "The card has moved since; dismiss this instead" : "Move the card to " + COL[sg.to].label;
+      ok.addEventListener("click", () => confirmScout(it, sg));
+      const no = document.createElement("button");
+      no.type = "button";
+      no.className = "link-btn";
+      no.textContent = "Dismiss";
+      no.title = "Leave the card where it is; the scout will not suggest this again";
+      no.addEventListener("click", () => dismissScout(it, sg));
+      acts.append(ok, no);
+      box.appendChild(acts);
+    }
+    out.push(box);
+  }
+  return out;
+}
+
+function withEntry(it, entry) {
+  return (Array.isArray(it.log) ? it.log : []).concat([Object.assign({ at: new Date().toISOString(), by: "user" }, entry)]);
+}
+
+function undoScout(it, mv) {
+  save(it.id, {
+    status: mv.move.from,
+    log: withEntry(it, { undo: mv.replyId, text: "Undid the scout's move: back to " + COL[mv.move.from].label + ". It will not move this card for that email again." })
+  }, "Back to " + COL[mv.move.from].label);
+}
+
+function confirmScout(it, sg) {
+  if (stageOf(it.status) !== sg.from) { say("The card has moved since that suggestion; dismiss it instead."); return; }
+  save(it.id, {
+    status: sg.to,
+    suggestions: it.suggestions.filter(x => x.replyId !== sg.replyId),
+    log: withEntry(it, { confirmed: sg.replyId, move: { from: sg.from, to: sg.to }, text: "Confirmed the scout's suggestion: moved to " + COL[sg.to].label + " (" + (sg.type || "reply") + ", email of " + shortDay(sg.emailDate) + ")" })
+  }, "Moved to " + COL[sg.to].label);
+}
+
+function dismissScout(it, sg) {
+  save(it.id, {
+    suggestions: it.suggestions.filter(x => x.replyId !== sg.replyId),
+    log: withEntry(it, { dismissed: sg.replyId, text: "Dismissed the scout's suggestion of " + COL[sg.to].label + " (" + (sg.type || "reply") + ", email of " + shortDay(sg.emailDate) + ")" })
+  }, "Suggestion dismissed");
+}
+
+const archiving = new Set();   // cards with the archive box open
+const archiveDrafts = {};
+
+function withLog(it, text) {
+  return (Array.isArray(it.log) ? it.log : []).concat([{ at: new Date().toISOString(), text: text }]);
+}
+
+/* Moving a card. Moving to Applied stamps today's date if none is recorded (F1),
+   so the histogram counts it without a trip to Edit. */
+function moveTo(it, key) {
+  const patch = { status: key };
+  if (key === "applied" && !it.applied) patch.applied = todayIso();
+  if (key !== "draft") patch.snoozeUntil = "";
+  patch.log = withLog(it, "Moved to " + COL[key].label);
+  save(it.id, patch, "Moved to " + COL[key].label);
+}
+
+function archiveBox(it) {
+  const box = document.createElement("div");
+  box.className = "archive-box";
+  const lab = document.createElement("label");
+  lab.className = "fl";
+  lab.textContent = "Why pass on it? Optional, and it teaches the scout";
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.id = "arch-" + it.id;
+  lab.htmlFor = inp.id;
+  inp.placeholder = "e.g. too junior, wrong domain, on-site five days";
+  inp.value = archiveDrafts[it.id] || "";
+  inp.addEventListener("input", () => { archiveDrafts[it.id] = inp.value; });
+  const go = () => {
+    const reason = inp.value.trim();
+    delete archiveDrafts[it.id];
+    archiving.delete(it.id);
+    save(it.id, {
+      status: "archived",
+      archivedReason: reason,
+      archivedAt: todayIso(),
+      snoozeUntil: "",
+      log: withLog(it, "Archived" + (reason ? ": " + reason : ""))
+    }, "Archived " + (it.company || ""));
+  };
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+  const row = document.createElement("div");
+  row.className = "row";
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "btn";
+  b.style.padding = "6px 13px";
+  b.style.fontSize = "13px";
+  b.textContent = "Archive";
+  b.addEventListener("click", go);
+  row.appendChild(b);
+  box.append(lab, inp, row);
+  return box;
+}
+
+function logEntry(id, e) {
+  const wrap = document.createElement("div");
+  wrap.className = "log-entry" + (e.by === "scout" ? " by-scout" : "");
+  // Entries that record a reply (I4) stay: removing one would let the scout act on that email again.
+  const kept = !!(e.replyId || e.undo || e.dismissed || e.confirmed);
+  const at = document.createElement("div");
+  at.className = "log-at";
+  const stamp = document.createElement("span");
+  stamp.textContent = fmtStamp(e.at);
+  at.appendChild(stamp);
+  if (canWrite && !kept) {
+    const drop = document.createElement("button");
+    drop.type = "button";
+    drop.className = "link-btn danger drop";
+    drop.textContent = "×";
+    drop.title = "Remove this note";
+    drop.setAttribute("aria-label", "Remove the note from " + fmtStamp(e.at));
+    drop.addEventListener("click", () => removeLog(id, e.at));
+    at.appendChild(drop);
+  }
+  const txt = document.createElement("p");
+  txt.className = "log-text";
+  txt.textContent = e.text;
+  wrap.append(at, txt);
+  return wrap;
+}
+
+/* Drafts survive a re-render, so a snapshot arriving mid-sentence costs nothing. */
+const drafts = {};
+
+function composer(id) {
+  const comp = document.createElement("div");
+  comp.className = "composer";
+  const lab = document.createElement("label");
+  lab.className = "fl";
+  lab.textContent = "New note — stamped with the date and time you add it";
+  const ta = document.createElement("textarea");
+  ta.id = "log-" + id;
+  lab.htmlFor = ta.id;
+  ta.placeholder = "What happened, or what has just become clear.";
+  ta.value = drafts[id] || "";
+  ta.addEventListener("input", () => { drafts[id] = ta.value; });
+
+  const commit = () => {
+    const text = ta.value;
+    if (!String(text).trim()) return;
+    delete drafts[id];
+    addLog(id, text);
+  };
+  ta.addEventListener("keydown", ev => {
+    if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); commit(); }
+  });
+
+  const row = document.createElement("div");
+  row.className = "row";
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "btn";
+  add.style.padding = "6px 13px";
+  add.style.fontSize = "13px";
+  add.textContent = "Add note";
+  add.addEventListener("click", commit);
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "link-btn";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => {
+    delete drafts[id];
+    composing.delete(id);
+    render();
+  });
+  const hint = document.createElement("span");
+  hint.className = "hintline";
+  hint.textContent = "Ctrl+Enter saves";
+  row.append(add, cancel, hint);
+
+  comp.append(lab, ta, row);
+  return comp;
+}
+
+function field(id, key, label, value, kind) {
+  const holder = document.createElement("div");
+  const lab = document.createElement("label");
+  lab.className = "fl";
+  lab.textContent = label;
+  const el = kind === "area" ? document.createElement("textarea") : document.createElement("input");
+  if (kind === "date") el.type = "date";
+  else if (kind !== "area") el.type = "text";
+  el.id = "f-" + key + "-" + id;
+  lab.htmlFor = el.id;
+  el.value = value;
+  let last = value;
+  const commit = () => {
+    if (el.value === last) return;
+    last = el.value;
+    const patch = {};
+    patch[key] = el.value;
+    save(id, patch, label + " saved");
+  };
+  el.addEventListener("blur", commit);
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter" && kind !== "area") { e.preventDefault(); el.blur(); }
+  });
+  holder.append(lab, el);
+  return holder;
+}
+
+async function save(id, patch, msg) {
+  const it = items.find(x => x.id === id);
+  if (it) Object.assign(it, patch);
+  render();
+  if (!db) { say("Not saved: no connection to the store."); return; }
+  try {
+    await db.collection("applications").doc(id)
+      .update(Object.assign({}, patch, { updated: new Date().toISOString() }));
+    say(msg);
+  } catch (e) {
+    say("That change could not be saved. Reload to see the stored version.");
+  }
+}
+
+async function remove(id, name) {
+  if (!db) return;
+  items = items.filter(x => x.id !== id);
+  editing.delete(id);
+  render();
+  try {
+    await db.collection("applications").doc(id).delete();
+    say("Removed " + (name || "entry"));
+  } catch (e) {
+    say("That entry could not be removed.");
+  }
+}
+
+document.getElementById("toggleAdd").addEventListener("click", () => {
+  adder.hidden = !adder.hidden;
+  if (!adder.hidden) document.getElementById("f-co").focus();
+});
+document.getElementById("cancelAdd").addEventListener("click", () => { adder.hidden = true; });
+
+adder.addEventListener("submit", async e => {
+  e.preventDefault();
+  const company = document.getElementById("f-co").value.trim();
+  if (!company) return;
+  if (!db) { say("Not saved: no connection to the store."); return; }
+  const doc = {
+    company,
+    role: document.getElementById("f-ro").value.trim(),
+    status: document.getElementById("f-st").value,
+    applied: document.getElementById("f-dt").value || "",
+    next: document.getElementById("f-nx").value.trim(),
+    link: document.getElementById("f-ln").value.trim(),
+    blurb: document.getElementById("f-bl").value.trim(),
+    notes: "",
+    updated: new Date().toISOString()
+  };
+  try {
+    await db.collection("applications").add(doc);
+    adder.reset();
+    fillStageSelect(document.getElementById("f-st"), "draft");
+    adder.hidden = true;
+    say("Added " + company);
+  } catch (err) {
+    say("That application could not be added.");
+  }
+});
+
+render();
+
+/* ---- connecting to the store, and saying so plainly when it fails ---- */
+let snapshotArrived = false, watchdog = null;
+
+function tellUser(text, label, action) {
+  noticeEl.hidden = false;
+  noticeEl.textContent = "";
+  noticeEl.appendChild(document.createTextNode(text + " "));
+  if (action) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn ghost";
+    b.style.padding = "3px 11px";
+    b.style.fontSize = "12.5px";
+    b.textContent = label;
+    b.addEventListener("click", () => { noticeEl.hidden = true; action(); });
+    noticeEl.appendChild(b);
+  }
+}
+
+async function askAgainThenConnect() {
+  try {
+    const perms = await claude.use("permissions");
+    if (perms && perms.request) await perms.request(["db", "user"]);
+  } catch (e) { /* a refusal is an answer, not an error */ }
+  connect();
+}
+
+async function connect() {
+  snapshotArrived = false;
+  if (watchdog) clearTimeout(watchdog);
+
+  const store = await claude.use("db");
+  if (!store) {
+    loaded = true;
+    render();
+    tellUser("The board's data store did not open in this view, so no cards can load. Your applications are not lost — they are held in the store, not in this page. If a permission prompt was dismissed, asking again usually fixes it.",
+      "Ask again", askAgainThenConnect);
+    return;
+  }
+  db = store;
+
+  const user = await claude.use("user");
+  if (user) {
+    try {
+      const w = await user.can("data.write");
+      if (w === false) canWrite = false;
+    } catch (e) { /* leave the controls in place and let a refused write decide */ }
+  }
+
+  watchdog = setTimeout(() => {
+    if (!snapshotArrived) {
+      tellUser("The store opened but has not sent any rows. That is usually a dropped connection rather than missing data.",
+        "Try again", connect);
+    }
+  }, 6000);
+
+  if (settingsUnsub) settingsUnsub();
+  settingsUnsub = db.collection("settings").doc("current").onSnapshot(
+    snap => {
+      settingsDoc = snap.exists ? snap.data() : null;
+      renderPaused();
+      if (settingsDlg.open) renderSettingsMeta();
+    },
+    () => { /* the board still works without settings; the defaults stand */ }
+  );
+
+  // Sprint 6b: the Inbox and Calendar collections, written by the morning run (create-only) and by the user here.
+  for (const name of ["replies", "todos", "events"]) {
+    db.collection(name).onSnapshot(
+      snap => { extra[name] = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); renderViews(); },
+      () => { /* the board works without them */ }
+    );
+  }
+
+  db.collection("applications").onSnapshot(
+    snap => {
+      snapshotArrived = true;
+      if (watchdog) clearTimeout(watchdog);
+      noticeEl.hidden = true;
+      items = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+      loaded = true;
+      render();
+    },
+    err => {
+      loaded = true;
+      render();
+      const detail = err && err.message ? " (" + err.message + ")" : "";
+      tellUser("Live updates stopped" + detail + ". Nothing has been lost; the board just needs to reconnect.",
+        "Reconnect", connect);
+    }
+  );
+}
+
+
+/* ───────────── Sprint 6b: the Inbox and Calendar tabs (I5, I7) ─────────────
+   The morning run creates replies/, todos/ and events/ documents (never edits
+   them); the user ticks, links, chooses, adds and moves them here. Nothing here
+   replies to anyone, accepts anything or leaves the board. */
+const extra = { replies: [], todos: [], events: [] };
+let view = readStore("pipeline.view", "board");
+if (["board", "inbox", "calendar"].indexOf(view) === -1) view = "board";
+let calMode = readStore("pipeline.calMode", "week");
+let calAnchor = new Date();
+const LOCAL_ZONE = (Intl.DateTimeFormat().resolvedOptions().timeZone) || "Europe/London";
+const TYPE_LABEL = { rejection: "rejection", invitation: "invitation", assessment: "assessment", request: "request", offer: "offer", "follow-up": "follow-up", other: "other", unread: "not read" };
+
+
+function setView(v) {
+  view = v;
+  writeStore("pipeline.view", v);
+  document.querySelectorAll("#views button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === v)));
+  const onBoard = v === "board";
+  ["board", "chartPanel"].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = !onBoard; });
+  // The board's own buttons apply only to the board view.
+  ["toggleAdd", "foldAll", "showSnoozed"].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = onBoard ? "" : "none"; });
+  if (!onBoard) document.getElementById("adder").hidden = true;
+  document.getElementById("inboxView").hidden = v !== "inbox";
+  document.getElementById("calView").hidden = v !== "calendar";
+  if (v === "inbox") markSeen();
+  renderViews();
+}
+
+function renderViews() {
+  const fresh = extra.replies.filter(r => r.seen === false).length;
+  document.getElementById("inboxNew").textContent = fresh ? " · " + fresh + " new" : "";
+  if (view === "inbox") renderInbox();
+  if (view === "calendar") renderCalendar();
+}
+
+async function markSeen() {
+  if (!db || !canWrite) return;
+  for (const r of extra.replies.filter(x => x.seen === false)) {
+    r.seen = true;
+    try { await db.collection("replies").doc(r.id).update({ seen: true }); } catch (e) { /* tries again next time */ }
+  }
+  renderViews();
+}
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function btn(text, fn, title) { const b = el("button", "link-btn", text); b.type = "button"; if (title) b.title = title; b.addEventListener("click", fn); return b; }
+const cardOf = id => items.find(x => x.id === id);
+function dayLabel(iso) { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString(undefined, { day: "numeric", month: "short" }); }
+
+function goToCard(id) {
+  setView("board");
+  const c = document.getElementById("card-" + id);
+  if (c) { c.scrollIntoView({ behavior: "smooth", block: "center" }); c.classList.add("flash"); setTimeout(() => c.classList.remove("flash"), 1500); }
+}
+
+/* ---- I5: replies and to-dos ---- */
+function renderInbox() {
+  const root = document.getElementById("inboxView");
+  root.textContent = "";
+  const grid = el("div", "inbox-grid");
+  const left = el("div", "replies");
+  left.appendChild(el("h2", "", "Replies"));
+  left.appendChild(el("p", "hint", "Newest first. Only what the scout read on your PC; never the email itself."));
+  const rs = extra.replies.slice().sort((a, b) => (Number(!!b.offer) - Number(!!a.offer)) || String(b.date).localeCompare(String(a.date)));
+  if (!rs.length) left.appendChild(el("p", "empty-note", "No replies yet. They arrive with the morning run."));
+  rs.forEach(r => left.appendChild(replyRow(r)));
+  const right = el("div", "todos");
+  right.appendChild(el("h2", "", "To do"));
+  right.appendChild(el("p", "hint", "What each reply asks of you. The scout never answers for you."));
+  const today = todayIso();
+  const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+  const ts = extra.todos.filter(t => !t.done || String(t.doneAt || "") >= weekAgo).sort((a, b) =>
+    (Number(!!a.done) - Number(!!b.done)) || ((a.askBy ? 0 : 1) - (b.askBy ? 0 : 1)) || String(a.askBy || "").localeCompare(String(b.askBy || "")));
+  if (!ts.length) right.appendChild(el("p", "empty-note", "Nothing to do."));
+  ts.forEach(t => right.appendChild(todoRow(t, today)));
+  if (canWrite) right.appendChild(todoAdder());
+  grid.append(left, right);
+  root.appendChild(grid);
+}
+
+/* BUG-3: the reader's own warnings, as a line of their own. */
+function warnBox(ws) {
+  const list = Array.isArray(ws) ? ws.filter(w => typeof w === "string" && w.trim()) : [];
+  if (!list.length) return null;
+  const box = el("div", "reply-warn");
+  const b = el("b", "", "Warning"); box.appendChild(b);
+  box.appendChild(document.createTextNode(list.join("; ")));
+  return box;
+}
+
+function replyRow(r) {
+  const warned = Array.isArray(r.warnings) && r.warnings.length > 0;
+  const row = el("div", "reply-row" + (warned ? " warned" : r.offer ? " offer" : ""));
+  row.appendChild(el("div", "d", dayLabel(r.date)));
+  const mid = el("div");
+  const who = el("div", "who", r.company || r.domain || "Unknown sender");
+  who.appendChild(el("span", "chip t-" + r.type, TYPE_LABEL[r.type] || r.type));
+  mid.appendChild(who);
+  if (r.role) mid.appendChild(el("div", "role", r.role));
+  const c = r.cardId ? cardOf(r.cardId) : null;
+  const acts = el("div", "acts");
+  let state = "";
+  if (r.action === "move") {
+    const mv = c && lastScoutMove(c);
+    state = mv && mv.replyId === r.replyId ? "Moved to " + COL[mv.move.to].label : "Moved by the scout; the card has changed since";
+    if (canWrite && mv && mv.replyId === r.replyId) acts.appendChild(btn("Undo", () => undoScout(c, mv)));
+  } else if (r.action === "suggest") {
+    const sg = c && (c.suggestions || []).find(x => x.replyId === r.replyId);
+    state = sg ? "Suggested: " + COL[sg.to].label + " (waiting for you)" : "Suggestion dealt with";
+    if (canWrite && sg) {
+      const ok = btn("Confirm", () => confirmScout(c, sg));
+      ok.disabled = stageOf(c.status) !== sg.from;
+      acts.append(ok, btn("Dismiss", () => dismissScout(c, sg)));
+    }
+  } else if (r.action === "unmatched" && !r.cardId) {
+    state = "Unmatched" + (r.note ? ": " + r.note : "");
+    if (canWrite) acts.appendChild(linkPicker(r));
+  } else if (r.action === "unread") {
+    state = "Not read on your PC" + (r.note ? ": " + r.note : "");
+  } else {
+    state = "Logged on the card";
+  }
+  if (r.offer) state = (warned ? "Offer, with a warning: check it is genuine before you answer. " : "Offer. ") + state;
+  const wb = warnBox(r.warnings);
+  if (wb) mid.appendChild(wb);
+  mid.appendChild(el("div", "state", state));
+  if (c) acts.appendChild(btn("Open card", () => goToCard(c.id)));
+  row.append(mid, acts);
+  return row;
+}
+
+function linkPicker(r) {
+  const sel = el("select", "plain");
+  sel.setAttribute("aria-label", "Link this reply to a card");
+  const first = el("option", "", "Open card…"); first.value = ""; sel.appendChild(first);
+  items.filter(i => ["applied", "conversation"].indexOf(stageOf(i.status)) !== -1)
+    .sort((a, b) => String(a.company).localeCompare(String(b.company)))
+    .forEach(i => { const o = el("option", "", (i.company || "?") + ", " + (i.role || "")); o.value = i.id; sel.appendChild(o); });
+  sel.addEventListener("change", async () => {
+    const c = cardOf(sel.value);
+    if (!c) return;
+    r.cardId = c.id;
+    await save(c.id, { log: withEntry(c, { linked: r.replyId, text: "Linked a reply to this card: " + (TYPE_LABEL[r.type] || r.type) + ", email of " + dayLabel(r.date) + " from " + (r.company || r.domain) }) }, "Reply linked to " + (c.company || "the card"));
+    try { await db.collection("replies").doc(r.id).update({ cardId: c.id, linkedBy: "user" }); } catch (e) { say("The link was logged on the card but not saved on the reply."); }
+    renderViews();
+  });
+  return sel;
+}
+
+function todoRow(t, today) {
+  const row = el("div", "todo-row" + (t.done ? " done" : ""));
+  const cb = el("input"); cb.type = "checkbox"; cb.checked = !!t.done; cb.disabled = !canWrite;
+  cb.setAttribute("aria-label", "Done: " + t.ask);
+  cb.addEventListener("change", async () => {
+    const patch = cb.checked ? { done: true, doneAt: today } : { done: false, doneAt: "" };
+    Object.assign(t, patch); renderViews();
+    try { await db.collection("todos").doc(t.id).update(patch); say(cb.checked ? "Done" : "Back on the list"); } catch (e) { say("That could not be saved."); }
+  });
+  const body = el("div");
+  body.appendChild(el("div", "t", t.ask));
+  const sub = el("div", "s");
+  const where = t.company || t.domain || (t.source === "user" ? "Your own" : "");
+  sub.appendChild(document.createTextNode(where + (t.askBy ? " · by " + dayLabel(t.askBy) : "")));
+  if (!t.done && t.askBy && t.askBy < today) { sub.appendChild(document.createTextNode(" · ")); sub.appendChild(el("span", "late", "overdue")); }
+  if (t.done && t.doneAt) sub.appendChild(document.createTextNode(" · done " + dayLabel(t.doneAt)));
+  body.appendChild(sub);
+  const tw = warnBox(t.warnings);
+  if (tw) body.appendChild(tw);
+  row.append(cb, body);
+  if (t.cardId && cardOf(t.cardId)) row.appendChild(btn("Card", () => goToCard(t.cardId)));
+  return row;
+}
+
+function todoAdder() {
+  const f = el("form", "todo-add");
+  const txt = el("input"); txt.type = "text"; txt.placeholder = "Add a to-do of your own"; txt.setAttribute("aria-label", "New to-do");
+  const dt = el("input"); dt.type = "date"; dt.setAttribute("aria-label", "By");
+  const b = el("button", "btn ghost", "Add"); b.type = "submit";
+  f.append(txt, dt, b);
+  f.addEventListener("submit", async e => {
+    e.preventDefault();
+    const ask = txt.value.trim(); if (!ask) return;
+    try { await db.collection("todos").add({ ask: ask.slice(0, 200), askBy: dt.value || null, done: false, source: "user", created: todayIso() }); say("Added"); }
+    catch (err) { say("That could not be saved."); }
+  });
+  return f;
+}
+
+/* ---- I7: the calendar ----
+   Events keep the wall time and zone they were given ("2026-10-20T14:00:00",
+   "Europe/London"); the board shows them in this browser's zone, with the
+   original alongside when the two differ. */
+function zoneOffsetMin(zone, utcMs) {
+  try {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      .formatToParts(new Date(utcMs)).filter(x => x.type !== "literal").map(x => [x.type, Number(x.value)]));
+    return (Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - utcMs) / 60000;
+  } catch (e) { return 0; }
+}
+function instantOf(ev) {
+  const s = String(ev.start || "");
+  if (s.indexOf("T") === -1) return null;
+  if (/Z$/.test(s)) return new Date(s);
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s);
+  if (!m) return null;
+  const guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  const zone = ev.zone || "Europe/London";
+  let t = guess - zoneOffsetMin(zone, guess) * 60000;
+  t = guess - zoneOffsetMin(zone, t) * 60000; // second pass settles the clocks-change hour
+  return new Date(t);
+}
+const localDay = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const hhmm = (d, zone) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: zone });
+const place = z => (z || "").split("/").pop().replace(/_/g, " ");
+
+function visibleEvents() {
+  const doneTodo = new Set(extra.todos.filter(t => t.done).map(t => t.replyId || t.id));
+  const evs = extra.events.filter(e => !e.hidden);
+  const chosen = new Set(evs.filter(e => e.chosen).map(e => e.group));
+  const confirmed = evs.filter(e => e.kind === "confirmed" || e.chosen).map(e => ({ card: e.cardId, at: instantOf(e) })).filter(x => x.at);
+  return evs.filter(e => {
+    if (e.kind === "deadline") return !doneTodo.has(e.replyId);
+    if (e.kind === "proposed" && !e.chosen) {
+      if (chosen.has(e.group)) return false;
+      const at = instantOf(e);
+      if (at && e.cardId && confirmed.some(c => c.card === e.cardId && Math.abs(c.at - at) < 864e5)) return false;
+    }
+    return true;
+  }).map(e => {
+    const at = instantOf(e);
+    return Object.assign({}, e, { at: at, day: at ? localDay(at) : String(e.start).slice(0, 10) });
+  });
+}
+
+function evBox(e) {
+  const kind = e.chosen ? "confirmed" : e.kind;
+  const b = el("div", "ev " + kind);
+  b.tabIndex = 0;
+  if (e.at) {
+    b.appendChild(el("span", "tm", hhmm(e.at, LOCAL_ZONE) + " "));
+  }
+  b.appendChild(document.createTextNode(e.chosen ? String(e.title || "").replace(/^Proposed/, "Chosen") : (e.title || "Event")));
+  if (e.at && e.zone && e.zone !== LOCAL_ZONE) b.appendChild(el("div", "orig", hhmm(e.at, e.zone) + " " + place(e.zone) + (e.zoneAssumed ? " (zone assumed)" : "")));
+  else if (e.zoneAssumed) b.appendChild(el("div", "orig", "zone assumed"));
+  if (e.kind === "proposed" && !e.chosen) b.appendChild(el("div", "orig", "proposed slot"));
+  if (canWrite) {
+    const acts = el("div", "acts");
+    if (e.kind === "proposed" && !e.chosen) acts.appendChild(btn("This one", ev => { ev.stopPropagation(); chooseSlot(e); }, "Mark this slot as the one you chose; the others hide. You still reply to them yourself."));
+    if (e.source === "user") acts.appendChild(btn("Move", ev => { ev.stopPropagation(); moveBox(b, e); }));
+    if (acts.childNodes.length) b.appendChild(acts);
+  }
+  const open = () => { if (e.cardId && cardOf(e.cardId)) goToCard(e.cardId); };
+  b.addEventListener("click", open);
+  b.addEventListener("keydown", k => { if (k.key === "Enter") open(); });
+  return b;
+}
+
+async function chooseSlot(e) {
+  try {
+    await db.collection("events").doc(e.id).update({ chosen: true });
+    const c = e.cardId && cardOf(e.cardId);
+    if (c) await save(c.id, { log: withEntry(c, { chose: e.id, text: "Chose the slot " + (e.at ? e.at.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : e.start) + " on the calendar (you still reply to them yourself)" }) }, "Slot chosen");
+    else say("Slot chosen");
+  } catch (err) { say("That could not be saved."); }
+}
+
+function moveBox(box, e) {
+  if (box.querySelector(".ev-move")) return;
+  const f = el("form", "ev-move");
+  const d = el("input"); d.type = "date"; d.value = String(e.start).slice(0, 10);
+  const t = el("input"); t.type = "time"; t.value = String(e.start).slice(11, 16);
+  const ok = el("button", "btn ghost", "Save"); ok.type = "submit";
+  f.append(d, t, ok);
+  f.addEventListener("click", ev => ev.stopPropagation());
+  f.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const start = d.value + (t.value ? "T" + t.value + ":00" : "");
+    try { await db.collection("events").doc(e.id).update({ start: start, zone: t.value ? LOCAL_ZONE : null }); say("Moved"); } catch (err) { say("That could not be saved."); }
+  });
+  box.appendChild(f);
+}
+
+function calAdder() {
+  const f = el("form", "cal-add");
+  const ti = el("input"); ti.type = "text"; ti.placeholder = "Add an event of your own"; ti.setAttribute("aria-label", "Event");
+  const d = el("input"); d.type = "date"; d.value = localDay(calAnchor); d.setAttribute("aria-label", "Date");
+  const t = el("input"); t.type = "time"; t.setAttribute("aria-label", "Time");
+  const b = el("button", "btn ghost", "Add"); b.type = "submit";
+  f.append(ti, d, t, b);
+  f.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    if (!ti.value.trim() || !d.value) return;
+    try {
+      await db.collection("events").add({ kind: "confirmed", title: ti.value.trim().slice(0, 120), start: d.value + (t.value ? "T" + t.value + ":00" : ""), zone: t.value ? LOCAL_ZONE : null, zoneAssumed: false, source: "user", created: todayIso() });
+      say("Added");
+    } catch (err) { say("That could not be saved."); }
+  });
+  return f;
+}
+
+function startOfWeek(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const wd = (x.getDay() + 6) % 7; x.setDate(x.getDate() - wd); return x; }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+
+function renderCalendar() {
+  const root = document.getElementById("calView");
+  root.textContent = "";
+  const phone = window.matchMedia("(max-width: 620px)").matches;
+  const head = el("div", "cal-head");
+  let days, title;
+  if (calMode === "today") { days = [new Date(calAnchor)]; title = calAnchor.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }); }
+  else if (calMode === "week") { const s = startOfWeek(calAnchor); days = Array.from({ length: 7 }, (_, i) => addDays(s, i)); title = "Week of " + s.toLocaleDateString(undefined, { day: "numeric", month: "long" }); }
+  else { const first = new Date(calAnchor.getFullYear(), calAnchor.getMonth(), 1); const s = startOfWeek(first); const weeks = Math.ceil((((first.getDay() + 6) % 7) + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7); days = Array.from({ length: weeks * 7 }, (_, i) => addDays(s, i)); title = first.toLocaleDateString(undefined, { month: "long", year: "numeric" }); }
+  head.appendChild(el("h2", "", title));
+  const seg = el("div", "seg"); seg.setAttribute("role", "group"); seg.setAttribute("aria-label", "Calendar view");
+  [["today", "Today"], ["week", "Week"], ["month", "Month"]].forEach(([k, l]) => {
+    const b = el("button", "", l); b.type = "button"; b.setAttribute("aria-pressed", String(calMode === k));
+    b.addEventListener("click", () => { calMode = k; writeStore("pipeline.calMode", k); if (k === "today") calAnchor = new Date(); renderCalendar(); });
+    seg.appendChild(b);
+  });
+  const step = n => () => { if (calMode === "today") calAnchor = addDays(calAnchor, n); else if (calMode === "week") calAnchor = addDays(calAnchor, 7 * n); else calAnchor = new Date(calAnchor.getFullYear(), calAnchor.getMonth() + n, 1); renderCalendar(); };
+  head.append(seg, btn("‹ Earlier", step(-1)), btn("Today", () => { calAnchor = new Date(); renderCalendar(); }), btn("Later ›", step(1)));
+  root.appendChild(head);
+  root.appendChild(el("p", "empty-note", "Times in your zone (" + place(LOCAL_ZONE) + "), with the original beside any that differ. Nothing here is accepted or booked."));
+  const evs = visibleEvents();
+  const byDay = {};
+  evs.forEach(e => (byDay[e.day] = byDay[e.day] || []).push(e));
+  Object.values(byDay).forEach(l => l.sort((a, b) => (a.at ? a.at.getTime() : 0) - (b.at ? b.at.getTime() : 0)));
+  const today = localDay(new Date());
+  const month = calAnchor.getMonth();
+  const dayBox = d => {
+    const k = localDay(d);
+    const box = el("div", "cal-day" + (k === today ? " today" : "") + (calMode === "month" && d.getMonth() !== month ? " other" : ""));
+    box.appendChild(el("div", "dn", d.toLocaleDateString(undefined, calMode === "month" && !phone ? { day: "numeric" } : { weekday: "short", day: "numeric", month: "short" })));
+    (byDay[k] || []).forEach(e => box.appendChild(evBox(e)));
+    return box;
+  };
+  if (phone || calMode === "today") {
+    const list = el("div", "cal-list");
+    const shown = days.filter(d => calMode === "today" || (byDay[localDay(d)] || []).length || localDay(d) === today);
+    shown.forEach(d => list.appendChild(dayBox(d)));
+    if (!evs.some(e => days.some(d => localDay(d) === e.day))) list.appendChild(el("p", "empty-note", "Nothing in this " + (calMode === "today" ? "day" : calMode) + "."));
+    root.appendChild(list);
+  } else {
+    const grid = el("div", "cal-week" + (calMode === "month" ? " cal-month" : ""));
+    days.forEach(d => grid.appendChild(dayBox(d)));
+    root.appendChild(grid);
+  }
+  if (canWrite) root.appendChild(calAdder());
+}
+
+document.querySelectorAll("#views button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+window.addEventListener("resize", () => { if (view === "calendar") renderCalendar(); });
+setTimeout(() => setView(view), 0);
+
+/* ───────────── Settings (the Job Scout's configuration) ─────────────
+   Everything the scout used to have fixed in its files, editable here.
+   Stored in the board's database as settings/current. The morning scoring
+   run reads it, uses the scoring values at once, and copies the filter,
+   place and word values to the PC (Job Scout\config\settings.json) for the
+   next morning's mail read. SETTINGS_DEFAULTS are the values agreed on
+   14 October 2026 (rubric v2), used for Reset and until a first save. */
+const SETTINGS_DEFAULTS = {"scoring": {"weights": {"scope": 20, "proof": 25, "ai": 10, "mustHaves": 15, "odds": 10, "engagement": 10, "company": 5, "pay": 5}, "threshold": 60, "lookBand": 55, "dailyCap": 5, "seniorPmCap": 5, "seniorPmSoleOwnerCap": 10, "carryOverMax": 2, "readAdvertFrom": 45}, "filters": {"ukPermanentMin": 110000, "ukPermanentTolerancePct": 10, "ukContractMinPerDay": 750, "secondMin": null, "fractionalMin": null, "hoursPerDay": 8, "eurToGbp": 0.85, "usdToGbp": 0.75}, "warnings": {"staleAfterDays": 21, "applicantsWarnAt": 200, "recruiterWords": ["recruitment", "recruiting", "recruiters", "talent", "search", "resourcing", "staffing", "headhunters", "executive search", "people partners", "consulting group"], "unnamedClient": ["our client", "my client", "confidential", "stealth", "undisclosed", "unnamed client"], "nda": ["nda", "non-disclosure"]}, "markets": {"london": ["london", "greater london", "hounslow", "heathrow", "croydon", "canary wharf", "city of london", "westminster", "stratford", "hammersmith", "shoreditch", "camden", "islington", "southwark"], "uk": ["united kingdom", "uk", "england", "scotland", "wales", "northern ireland", "britain", "manchester", "bristol", "leeds", "birmingham", "edinburgh", "glasgow", "cambridge", "oxford", "southampton", "reading", "brighton", "newcastle", "liverpool", "sheffield", "nottingham", "cardiff", "belfast", "milton keynes", "guildford", "bath", "york", "leicester", "coventry", "aberdeen", "dundee", "swansea", "exeter", "norwich", "sunderland", "slough", "watford"], "second": [], "remoteMaybeUk": ["emea", "europe", "worldwide", "anywhere", "global"], "elsewhere": ["united states", "usa", "new york", "san francisco", "canada", "toronto", "germany", "berlin", "munich", "france", "paris", "netherlands", "amsterdam", "spain", "barcelona", "madrid", "portugal", "lisbon", "ireland", "dublin", "switzerland", "zurich", "geneva", "singapore", "hong kong", "japan", "tokyo", "india", "bengaluru", "bangalore", "australia", "sydney", "poland", "warsaw", "sweden", "stockholm", "denmark", "copenhagen", "israel", "tel aviv", "uae", "dubai", "lausanne", "basel", "bern", "vienna", "austria", "brussels", "belgium", "luxembourg", "milan", "italy", "rome", "prague", "budapest", "bucharest", "athens", "helsinki", "oslo", "norway", "finland", "estonia", "tallinn", "kraków", "krakow", "seoul", "korea", "shanghai", "beijing", "shenzhen", "china", "manila", "kuala lumpur", "bangkok", "jakarta", "vietnam", "ho chi minh", "hanoi", "mexico", "brazil", "são paulo", "sao paulo", "argentina", "south africa", "cape town", "nairobi", "lagos", "cairo", "riyadh", "doha", "austin", "seattle", "boston", "chicago", "los angeles", "denver", "atlanta", "miami", "washington", "vancouver", "montreal", "melbourne", "auckland"], "openFromAbroad": ["consultancy", "consultant", "contract", "contractor", "fractional", "freelance", "interim", "advisor", "adviser"]}, "level": {"leadership": ["senior", "sr", "lead", "staff", "principal", "group", "gpm", "head", "director", "vp", "vice president", "chief product", "cpo"], "productWords": ["product"], "otherKinds": ["fractional", "interim", "consultant", "consultancy", "advisor", "adviser", "mentor", "tutor", "teacher", "instructor", "lecturer", "coach", "trainer"], "otherKindsContext": ["ai", "artificial intelligence", "product", "tech", "technology", "digital", "coding", "computing", "computer", "software", "data", "agentic", "automation"], "belowFloor": ["associate product", "junior", "graduate", "intern", "apprentice", "entry level", "apm"], "notProductManagement": ["product designer", "product marketing", "product analyst", "product engineer", "product support", "product specialist", "product operations", "software engineer", "engineering manager", "developer", "data scientist", "recruiter", "sales", "account executive", "account manager"], "notProductUnlessProductInTitle": ["engineer", "engineering", "developer", "delivery", "programme manager", "program manager", "project manager", "architect", "scientist", "designer", "analyst"], "hardwareWords": ["semiconductor", "hardware", "firmware", "silicon", "chip", "ic design", "asic", "wafer", "fab", "packaging", "test engineering"]}, "targets": {"companies": ["Corvid Labs"], "packBelowLine": false, "extraPlaces": 1}, "sources": {"senders": [{"source": "linkedin", "from": "jobalerts-noreply@linkedin.com"}, {"source": "linkedin", "from": "jobs-noreply@linkedin.com"}, {"source": "linkedin", "from": "jobs-listings@linkedin.com"}, {"source": "hackajob", "from": "hackajob"}, {"source": "google", "from": "careers-noreply@google.com"}, {"source": "microsoft", "from": "careers.microsoft.com"}], "firstRunLookbackDays": 7, "repliesEnabled": true, "replySenders": [{"system": "greenhouse", "domain": "greenhouse-mail.io"}, {"system": "greenhouse", "domain": "us.greenhouse-mail.io"}, {"system": "lever", "domain": "hire.lever.co"}, {"system": "ashby", "domain": "ashbyhq.com"}, {"system": "workable", "domain": "workablemail.com"}, {"system": "workday", "domain": "myworkday.com"}, {"system": "smartrecruiters", "domain": "smartrecruiters.com"}, {"system": "teamtailor", "domain": "teamtailor-mail.com"}, {"system": "personio", "domain": "personio.de"}, {"system": "linkedin", "domain": "linkedin.com"}]}, "packs": {"letterMinWords": 350, "letterMaxWords": 450, "cvLocationUk": "London", "cvLocationSecond": ""}, "control": {"paused": false, "advertsPerRun": 20}, "reader": {"enabled": true, "model": "qwen2.5:14b", "useForScoring": false, "waitMinutes": 30}};
+
+const SITE_NAMES = { linkedin: "LinkedIn", hackajob: "hackajob", google: "Google Careers", microsoft: "Microsoft Careers", request: "On request" };
+const SETTINGS_TABS = [
+  ["control", "Control"],
+  ["scoring", "Scoring"],
+  ["filters", "Pay and filters"],
+  ["words", "Places and words"],
+  ["sources", "Sources"],
+  ["packs", "Packs"],
+  ["schedule", "Schedule"],
+];
+
+/* One entry per editable value. type: bool, int, dec, intOrBlank, list, senders, text. */
+const SETTINGS_FIELDS = [
+  { tab: "control", group: "Pause", key: "control.paused", label: "Pause the scout", type: "bool", help: "While paused, the mail read stops without reading anything, and the morning and weekly runs stop before scoring, writing packs or adding cards. Nothing is lost: unread alerts wait in the mailbox. Takes effect at the next run." },
+  { tab: "control", group: "Limits on each run", key: "control.advertsPerRun", label: "Adverts read in full per run, at most", type: "int", min: 0, max: 60, help: "The rest are scored from the alert alone. Packs and cards are limited by Packs a day (Scoring)." },
+  { tab: "control", group: "Advert reader on your PC (H5)", key: "reader.enabled", label: "Read adverts on the PC with the local model", type: "bool", help: "Off: the morning run reads every advert in the cloud, as before." },
+  { tab: "control", key: "reader.model", label: "Local model (as named in Ollama)", type: "text", help: "Set from the model retest. It must be installed on the PC (ollama pull <name>)." },
+  { tab: "control", key: "reader.useForScoring", label: "Score from the PC's reading", type: "bool", help: "Off until a model passes the retest: the PC's specs then feed only the ATS match, and the morning run reads the PC's copy of each advert itself." },
+  { tab: "control", key: "reader.waitMinutes", label: "Minutes the reader waits for the list of adverts", type: "int", min: 0, max: 120 },
+  { tab: "scoring", group: "Rubric weights (must add up to 100)", key: "scoring.weights.scope", label: "Scope and level", type: "int", min: 0, max: 100, weight: true },
+  { tab: "scoring", key: "scoring.weights.proof", label: "Proof-point fit", type: "int", min: 0, max: 100, weight: true },
+  { tab: "scoring", key: "scoring.weights.ai", label: "AI and agentic alignment", type: "int", min: 0, max: 100, weight: true },
+  { tab: "scoring", key: "scoring.weights.mustHaves", label: "Must-haves he can evidence", type: "int", min: 0, max: 100, weight: true },
+  { tab: "scoring", key: "scoring.weights.odds", label: "Odds", type: "int", min: 0, max: 100, weight: true },
+  { tab: "scoring", key: "scoring.weights.engagement", label: "Engagement type", type: "int", min: 0, max: 100, weight: true },
+  { tab: "scoring", key: "scoring.weights.company", label: "Company fit", type: "int", min: 0, max: 100, weight: true },
+  { tab: "scoring", key: "scoring.weights.pay", label: "Pay", type: "int", min: 0, max: 100, weight: true },
+  { tab: "scoring", group: "The shortlist", key: "scoring.threshold", label: "Shortlist threshold (score out of 100)", type: "int", min: 0, max: 100 },
+  { tab: "scoring", key: "scoring.lookBand", label: "List as worth a look from this score", type: "int", min: 0, max: 100, help: "Roles from this score up to the threshold are listed in the digest with no pack (C9). Set it to the threshold to turn the band off." },
+  { tab: "scoring", key: "scoring.dailyCap", label: "Packs a day, at most", type: "int", min: 0, max: 20 },
+  { tab: "scoring", key: "scoring.carryOverMax", label: "Times a role that misses the cap is offered again", type: "int", min: 0, max: 5 },
+  { tab: "scoring", key: "scoring.readAdvertFrom", label: "Read the full advert from a provisional score of", type: "int", min: 0, max: 100 },
+  { tab: "scoring", group: "Target employers", key: "targets.companies", label: "Companies, one per line (matched as whole words: Google matches Google UK, not Googleplex)", type: "list", help: "Their roles are read first and listed in their own digest section, never lost below the line. Scores are not boosted." },
+  { tab: "scoring", key: "targets.extraPlaces", label: "Extra places beyond Packs a day, for target roles only", type: "int", min: 0, max: 5 },
+  { tab: "scoring", key: "targets.packBelowLine", label: "Build packs for target roles below the threshold", type: "bool", help: "Off: a target role below the line is listed but gets no pack. On: it may take one of the extra places." },
+  { tab: "scoring", group: "Senior PM roles", key: "scoring.seniorPmCap", label: "Most Scope points for a Senior PM role", type: "int", min: 0, max: 100, help: "Out of the Scope weight." },
+  { tab: "scoring", key: "scoring.seniorPmSoleOwnerCap", label: "…when it owns all of product or reports to the CEO or a founder", type: "int", min: 0, max: 100 },
+
+  { tab: "filters", group: "Pay floors (where the alert publishes pay)", key: "filters.ukPermanentMin", label: "UK permanent, £ a year", type: "int", min: 0, max: 10000000 },
+  { tab: "filters", key: "filters.ukPermanentTolerancePct", label: "Pass with a flag when this % or less under it", type: "int", min: 0, max: 50 },
+  { tab: "filters", key: "filters.ukContractMinPerDay", label: "UK contract, £ a day", type: "int", min: 0, max: 100000 },
+  { tab: "filters", key: "filters.secondMin", label: "Second market, a year in its currency (blank: no floor)", type: "intOrBlank", min: 0, max: 1000000000 },
+  { tab: "filters", key: "filters.fractionalMin", label: "Fractional, £ a day (blank: no floor)", type: "intOrBlank", min: 0, max: 100000 },
+  { tab: "filters", group: "Conversions", key: "filters.hoursPerDay", label: "Hours in a contract day (for hourly rates)", type: "int", min: 1, max: 24 },
+  { tab: "filters", key: "filters.eurToGbp", label: "£ per €", type: "dec", min: 0.01, max: 10 },
+  { tab: "filters", key: "filters.usdToGbp", label: "£ per $", type: "dec", min: 0.01, max: 10 },
+  { tab: "filters", group: "Warning signs", key: "warnings.staleAfterDays", label: "Flag as possibly stale after this many days", type: "int", min: 1, max: 365 },
+  { tab: "filters", key: "warnings.applicantsWarnAt", label: "Flag long odds at this many applicants", type: "int", min: 1, max: 100000 },
+
+  { tab: "words", group: "Markets (one per line)", key: "markets.london", label: "London places", type: "list" },
+  { tab: "words", key: "markets.uk", label: "UK places outside London (pass only if remote)", type: "list" },
+  { tab: "words", key: "markets.second", optional: true, label: "Second-market places (blank: none)", type: "list" },
+  { tab: "words", key: "markets.remoteMaybeUk", label: "Remote areas that may include the UK (flagged)", type: "list" },
+  { tab: "words", key: "markets.elsewhere", label: "Places elsewhere (dropped unless remote or open from abroad)", type: "list" },
+  { tab: "words", key: "markets.openFromAbroad", label: "Kinds of work that may be done from abroad (flagged)", type: "list" },
+  { tab: "words", group: "Level (one per line)", key: "level.leadership", label: "Seniority words", type: "list" },
+  { tab: "words", key: "level.productWords", label: "Product words", type: "list" },
+  { tab: "words", key: "level.belowFloor", label: "Below the floor (dropped)", type: "list" },
+  { tab: "words", key: "level.notProductManagement", label: "Not product management (dropped)", type: "list" },
+  { tab: "words", key: "level.notProductUnlessProductInTitle", label: "Other functions (dropped unless the title says product)", type: "list" },
+  { tab: "words", key: "level.hardwareWords", label: "Hardware and semiconductor work (dropped, in every market)", type: "list" },
+  { tab: "words", key: "level.otherKinds", label: "Other kinds of work in scope (mentor, fractional…)", type: "list" },
+  { tab: "words", key: "level.otherKindsContext", label: "…and the subjects that make them relevant", type: "list" },
+  { tab: "words", group: "Warning words (one per line)", key: "warnings.recruiterWords", label: "Words that mark an agency poster", type: "list" },
+  { tab: "words", key: "warnings.unnamedClient", label: "Words that mark an unnamed client", type: "list" },
+  { tab: "words", key: "warnings.nda", label: "Words that mark an NDA", type: "list" },
+
+  { tab: "sources", group: "Alert emails read through Proton Mail Bridge", key: "sources.senders", label: "Senders, one per line as source: address. Sources with a reader: linkedin, hackajob, google, microsoft; any other name is read and counted, with no reader yet", type: "senders" },
+  { tab: "sources", key: "sources.firstRunLookbackDays", label: "Days to look back on a first run", type: "int", min: 1, max: 60 },
+  { tab: "sources", group: "Replies to your applications (Sprint 6a): read on your PC, never answered", key: "sources.repliesEnabled", label: "Look for replies to applications", type: "bool" },
+  { tab: "sources", key: "sources.replySenders", label: "Hiring systems' mail domains, one per line as name: domain. linkedin counts only its application updates", type: "systems" },
+
+  { tab: "packs", group: "Covering letter", key: "packs.letterMinWords", label: "Words, at least", type: "int", min: 100, max: 1000 },
+  { tab: "packs", key: "packs.letterMaxWords", label: "Words, at most", type: "int", min: 100, max: 1000 },
+  { tab: "packs", group: "CV location line", key: "packs.cvLocationUk", label: "For UK roles", type: "text" },
+  { tab: "packs", key: "packs.cvLocationSecond", optional: true, label: "For second-market roles", type: "text" },
+];
+
+/* Values that are not settings, shown so nothing looks hidden. */
+const SETTINGS_FIXED = {
+  control: [
+    ["Alert text", "Read as data, never as instructions. Lines that try to instruct an AI are removed before scoring and listed in run.md, and the role carries a warning"],
+    ["Checked before writing", "Every score list, carry-over, card and pack is checked by tools\\validate.py first. A failed check writes nothing and is reported in the digest"],
+    ["Bridge password", "Stored encrypted outside both folders (scripts\\set-bridge-password.ps1), where Claude's scheduled tasks cannot read it"],
+    ["What the AI may change", "Only its own Draft cards, its run folders and the tracker's Scouted rows. Never these settings, your cards, or anything sent"],
+  ],
+  packs: [
+    ["CV length", "Two pages, Google starting page two (checked on every build)"],
+    ["Selected highlights", "Three, from your highlight bank; new ones only once you approve them"],
+    ["What changes in the CV", "Summary, the three highlights and the location line only"],
+  ],
+  schedule: [
+    ["Mail read", "06:30 daily, Windows task \"Job Scout\". To change it, edit $ScoutAt in scripts\\install-schedule.ps1 and run it again"],
+    ["Finding the adverts", "07:23 daily, Claude scheduled task \"Job Scout morning run\" (part 1). Ask Claude to change it"],
+    ["Reading the adverts", "07:45 daily, Windows task \"Job Scout reader\", with the local model on your PC. Edit $ReaderAt in the same script"],
+    ["Scoring, packs and cards", "08:10 daily, Claude scheduled task \"Job Scout scoring\" (part 2). Ask Claude to change it"],
+    ["Weekly summary", "08:50 Mondays, Claude scheduled task \"Job Scout weekly summary\". Ask Claude to change it"],
+    ["Never", "Apply, submit, reply to or contact anyone; edit LinkedIn or hackajob. Not a setting"],
+  ],
+};
+
+let settingsDoc = null, settingsTab = "control";
+const settingsDlg = document.getElementById("settingsDlg");
+
+const getPath = (obj, key) => key.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj);
+function setPath(obj, key, value) {
+  const parts = key.split(".");
+  let o = obj;
+  for (const p of parts.slice(0, -1)) { if (typeof o[p] !== "object" || o[p] === null) o[p] = {}; o = o[p]; }
+  o[parts.at(-1)] = value;
+}
+/* The stored settings with any missing field filled from the defaults. */
+function effectiveSettings() {
+  const out = JSON.parse(JSON.stringify(SETTINGS_DEFAULTS));
+  if (settingsDoc) for (const f of SETTINGS_FIELDS) {
+    // Sprint 9: the second market's keys were named for its place; a stored document may still use the old names.
+    let v = getPath(settingsDoc, f.key);
+    if (v === undefined && f.legacy) v = getPath(settingsDoc, f.legacy);
+    if (v !== undefined) setPath(out, f.key, v);
+  }
+  return out;
+}
+const sendersToText = list => (list || []).map(s => s.source + ": " + s.from).join("\n");
+const systemsToText = list => (list || []).map(s => s.system + ": " + s.domain).join("\n");
+function toText(f, v) {
+  if (f.type === "bool") return v ? "on" : "off";
+  if (f.type === "list") return (v || []).join("\n");
+  if (f.type === "senders") return sendersToText(v);
+  if (f.type === "systems") return systemsToText(v);
+  return v === null || v === undefined ? "" : String(v);
+}
+const fieldId = key => "set-" + key.replace(/\./g, "-");
+
+function buildSettingsForm(values) {
+  const body = document.getElementById("setBody");
+  body.textContent = "";
+  for (const [tab, name] of SETTINGS_TABS) {
+    const pane = document.createElement("div");
+    pane.className = "set-pane";
+    pane.dataset.tab = tab;
+    pane.hidden = tab !== settingsTab;
+    pane.setAttribute("role", "tabpanel");
+    pane.setAttribute("aria-label", name);
+    let grid = null;
+    for (const f of SETTINGS_FIELDS.filter(x => x.tab === tab)) {
+      if (f.group || !grid) {
+        if (f.group) {
+          const h = document.createElement("h3");
+          h.className = "set-group";
+          h.textContent = f.group;
+          pane.appendChild(h);
+        }
+        grid = document.createElement("div");
+        grid.className = "set-grid";
+        pane.appendChild(grid);
+      }
+      const wrap = document.createElement("div");
+      wrap.className = "set-field" + (f.type === "list" || f.type === "senders" || f.type === "systems" ? " wide" : "");
+      const lab = document.createElement("label");
+      lab.className = "fl";
+      lab.htmlFor = fieldId(f.key);
+      lab.textContent = f.label;
+      let input;
+      if (f.type === "bool") {
+        wrap.className = "set-field wide set-switch";
+        input = document.createElement("input");
+        input.type = "checkbox";
+        input.id = fieldId(f.key);
+        input.checked = !!getPath(values, f.key);
+        input.disabled = !canWrite;
+        input.addEventListener("change", validateSettings);
+        lab.prepend(input);
+        wrap.append(lab);
+        if (f.help) {
+          const h = document.createElement("span");
+          h.className = "set-help";
+          h.textContent = f.help;
+          wrap.appendChild(h);
+        }
+        grid.appendChild(wrap);
+        continue;
+      }
+      if (f.type === "list" || f.type === "senders" || f.type === "systems") {
+        input = document.createElement("textarea");
+        input.rows = Math.min(8, Math.max(3, (getPath(values, f.key) || []).length));
+        input.spellcheck = false;
+      } else {
+        input = document.createElement("input");
+        input.type = "text";
+        input.inputMode = f.type === "text" ? "text" : "decimal";
+        input.autocomplete = "off";
+      }
+      input.id = fieldId(f.key);
+      input.value = toText(f, getPath(values, f.key));
+      input.disabled = !canWrite;
+      input.addEventListener("input", validateSettings);
+      wrap.append(lab, input);
+      if (f.help) {
+        const h = document.createElement("span");
+        h.className = "set-help";
+        h.textContent = f.help;
+        wrap.appendChild(h);
+      }
+      grid.appendChild(wrap);
+    }
+    if (tab === "scoring") {
+      const total = document.createElement("p");
+      total.className = "set-total";
+      total.id = "setWeightTotal";
+      pane.insertBefore(total, pane.children[2] || null);
+    }
+    for (const [label, text] of SETTINGS_FIXED[tab] || []) {
+      const row = document.createElement("div");
+      row.className = "set-fixed";
+      const b = document.createElement("b"); b.textContent = label;
+      const s = document.createElement("span"); s.textContent = text;
+      row.append(b, s);
+      pane.appendChild(row);
+    }
+    body.appendChild(pane);
+  }
+  validateSettings();
+}
+
+function readField(f) {
+  if (f.type === "bool") return { value: document.getElementById(fieldId(f.key)).checked };
+  const raw = document.getElementById(fieldId(f.key)).value;
+  const t = raw.trim();
+  if (f.type === "text") return t ? { value: t } : f.optional ? { value: "" } : { error: "cannot be blank" };
+  if (f.type === "list") {
+    const list = raw.split(/\n|,/).map(x => x.trim()).filter(Boolean);
+    return list.length || f.optional ? { value: list } : { error: "needs at least one entry" };
+  }
+  if (f.type === "senders") {
+    const out = [];
+    for (const line of raw.split("\n").map(x => x.trim()).filter(Boolean)) {
+      const m = line.match(/^([a-z0-9-]+)\s*:\s*(\S+)$/i);
+      if (!m) return { error: "each line must be source: address, for example google: careers-noreply@google.com" };
+      out.push({ source: m[1].toLowerCase(), from: m[2] });
+    }
+    return out.length ? { value: out } : { error: "needs at least one sender" };
+  }
+  if (f.type === "systems") {
+    const out = [];
+    for (const line of raw.split("\n").map(x => x.trim()).filter(Boolean)) {
+      const m = line.match(/^([a-z0-9-]+)\s*:\s*([a-z0-9.-]+\.[a-z]{2,})$/i);
+      if (!m) return { error: "each line must be name: domain, for example greenhouse: greenhouse-mail.io" };
+      out.push({ system: m[1].toLowerCase(), domain: m[2].toLowerCase() });
+    }
+    return out.length ? { value: out } : { error: "needs at least one hiring system" };
+  }
+  if (f.type === "intOrBlank" && t === "") return { value: null };
+  const n = Number(t.replace(/[£$€,\s]/g, ""));
+  if (t === "" || !Number.isFinite(n)) return { error: "must be a number" };
+  if ((f.type === "int" || f.type === "intOrBlank") && !Number.isInteger(n)) return { error: "must be a whole number" };
+  if (n < f.min || n > f.max) return { error: "must be between " + f.min + " and " + f.max };
+  return { value: n };
+}
+
+/* Reads the whole form; returns the new settings and every problem found. */
+function collectSettings() {
+  const next = JSON.parse(JSON.stringify(SETTINGS_DEFAULTS));
+  const problems = [];
+  for (const f of SETTINGS_FIELDS) {
+    const r = readField(f);
+    const el = document.getElementById(fieldId(f.key));
+    el.toggleAttribute("aria-invalid", !!r.error);
+    if (r.error) problems.push(f.label + " " + r.error);
+    else setPath(next, f.key, r.value);
+  }
+  const w = next.scoring.weights;
+  const total = Object.values(w).reduce((a, b) => a + (Number(b) || 0), 0);
+  if (total !== 100) problems.push("The rubric weights add up to " + total + ", not 100");
+  if (next.scoring.seniorPmCap > w.scope || next.scoring.seniorPmSoleOwnerCap > w.scope) problems.push("A Senior PM cap is higher than the Scope weight (" + w.scope + ")");
+  if (next.scoring.seniorPmCap > next.scoring.seniorPmSoleOwnerCap) problems.push("The sole-owner Senior PM cap should not be lower than the ordinary one");
+  if (next.packs.letterMinWords > next.packs.letterMaxWords) problems.push("The letter's word range is the wrong way round");
+  if (next.scoring.lookBand > next.scoring.threshold) problems.push("The worth-a-look score is above the threshold (" + next.scoring.threshold + ")");
+  return { next, problems, total };
+}
+
+function validateSettings() {
+  const { problems, total } = collectSettings();
+  const tot = document.getElementById("setWeightTotal");
+  if (tot) {
+    tot.textContent = "Total: " + total + " of 100";
+    tot.classList.toggle("bad", total !== 100);
+  }
+  const msg = document.getElementById("setProblems");
+  msg.textContent = problems.length ? problems.join(" · ") : "";
+  msg.hidden = !problems.length;
+  document.getElementById("setSave").disabled = !canWrite || problems.length > 0;
+  return problems;
+}
+
+/* A plain list of what changed, for the change log. */
+function describeChanges(before, after) {
+  const out = [];
+  for (const f of SETTINGS_FIELDS) {
+    const a = getPath(before, f.key), b = getPath(after, f.key);
+    if (JSON.stringify(a) === JSON.stringify(b)) continue;
+    if (f.type === "list" || f.type === "senders" || f.type === "systems") {
+      const asText = v => (f.type === "senders" ? (v || []).map(s => s.source + ": " + s.from) : f.type === "systems" ? (v || []).map(s => s.system + ": " + s.domain) : v || []);
+      const A = asText(a), B = asText(b);
+      const added = B.filter(x => !A.includes(x)), removed = A.filter(x => !B.includes(x));
+      out.push(f.label + ": " + [added.length ? "added " + added.join(", ") : "", removed.length ? "removed " + removed.join(", ") : ""].filter(Boolean).join("; "));
+    } else {
+      const show = v => (f.type === "bool" ? (v ? "on" : "off") : v === null || v === undefined || v === "" ? "none" : String(v));
+      out.push(f.label + ": " + show(a) + " → " + show(b));
+    }
+  }
+  return out;
+}
+
+/* A line under the title while the scout is paused, so it is never paused by accident for long. */
+function renderPaused() {
+  const el = document.getElementById("pausedNote");
+  const paused = !!(settingsDoc && settingsDoc.control && settingsDoc.control.paused);
+  el.hidden = !paused;
+  if (paused) {
+    const when = (settingsDoc.changes || []).find(c => /Pause the scout: off → on/.test(c.text || ""));
+    el.querySelector("span").textContent = "The Job Scout is paused" + (when ? " (since " + fmtDate(when.at.slice(0, 10)) + ")" : "") + ": no alerts are read, scored or packed until you resume it in Settings, Control.";
+  }
+}
+
+function renderSettingsMeta() {
+  const meta = document.getElementById("setMeta");
+  if (!settingsDoc) {
+    meta.textContent = "Not saved yet: the scout is using the values agreed on 14 October 2026 (rubric v2).";
+    return;
+  }
+  meta.textContent = "Version " + (settingsDoc.version || 1) + " · rubric v" + (settingsDoc.rubricVersion || 2) +
+    (settingsDoc.updated ? " · last changed " + fmtDate(settingsDoc.updated.slice(0, 10)) : "");
+  const log = document.getElementById("setLog");
+  log.textContent = "";
+  for (const c of (settingsDoc.changes || []).slice(0, 8)) {
+    const li = document.createElement("li");
+    const when = document.createElement("span");
+    when.className = "when";
+    when.textContent = fmtDate((c.at || "").slice(0, 10));
+    li.append(when, document.createTextNode(c.text || ""));
+    log.appendChild(li);
+  }
+  document.getElementById("setLogWrap").hidden = !(settingsDoc.changes || []).length;
+}
+
+function showSettingsTab(tab) {
+  settingsTab = tab;
+  for (const b of document.querySelectorAll("#setTabs button")) b.setAttribute("aria-selected", b.dataset.tab === tab ? "true" : "false");
+  for (const p of document.querySelectorAll(".set-pane")) p.hidden = p.dataset.tab !== tab;
+}
+
+function openSettings() {
+  const tabs = document.getElementById("setTabs");
+  if (!tabs.childElementCount) {
+    for (const [tab, name] of SETTINGS_TABS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.tab = tab;
+      b.setAttribute("role", "tab");
+      b.textContent = name;
+      b.addEventListener("click", () => showSettingsTab(tab));
+      tabs.appendChild(b);
+    }
+  }
+  buildSettingsForm(effectiveSettings());
+  renderSettingsMeta();
+  showSettingsTab(settingsTab);
+  document.getElementById("setSave").hidden = !canWrite;
+  document.getElementById("setReset").hidden = !canWrite;
+  document.getElementById("setStatus").textContent = canWrite ? "" : "You can view these settings but not change them.";
+  if (typeof settingsDlg.showModal === "function") settingsDlg.showModal();
+  else settingsDlg.setAttribute("open", "");
+}
+
+async function saveSettings() {
+  const problems = validateSettings();
+  if (problems.length) return;
+  const before = effectiveSettings();
+  const { next } = collectSettings();
+  const changes = describeChanges(before, next);
+  const status = document.getElementById("setStatus");
+  if (!changes.length) { status.textContent = "No changes to save."; return; }
+  if (!db) { status.textContent = "Not saved: no connection to the store."; return; }
+  const scoringChanged = SETTINGS_FIELDS.some(f => f.key.startsWith("scoring.") && f.key !== "scoring.lookBand" && JSON.stringify(getPath(before, f.key)) !== JSON.stringify(getPath(next, f.key)));
+  const now = new Date().toISOString();
+  const doc = Object.assign(next, {
+    version: (settingsDoc && settingsDoc.version || 1) + 1,
+    rubricVersion: (settingsDoc && settingsDoc.rubricVersion || 2) + (scoringChanged ? 1 : 0),
+    updated: now,
+    changes: [{ at: now, text: changes.join("; ") }].concat((settingsDoc && settingsDoc.changes) || []).slice(0, 20),
+  });
+  const btn = document.getElementById("setSave");
+  btn.disabled = true;
+  status.textContent = "Saving…";
+  try {
+    await db.collection("settings").doc("current").set(doc);
+    settingsDoc = doc;
+    renderSettingsMeta();
+    renderPaused();
+    const pauseChanged = !!getPath(before, "control.paused") !== !!doc.control.paused;
+    status.textContent = "Saved as version " + doc.version + (scoringChanged ? ", rubric v" + doc.rubricVersion : "") + ". " +
+      (pauseChanged
+        ? (doc.control.paused
+          ? "The next morning or weekly run stops before doing anything, and tells the PC to stop reading mail from the day after."
+          : "Resumed: the next morning run scores the most recent mail read, and the PC reads mail again from the day after.")
+        : "The scoring run uses it from tomorrow morning; filter and word changes reach the mail read the day after.");
+  } catch (e) {
+    status.textContent = "Not saved: " + (e && e.message ? e.message : "the store refused the change") + ".";
+  } finally {
+    validateSettings();
+  }
+}
+
+document.getElementById("openSettings").addEventListener("click", openSettings);
+document.getElementById("setClose").addEventListener("click", () => settingsDlg.close());
+document.getElementById("setCancel").addEventListener("click", () => settingsDlg.close());
+document.getElementById("setSave").addEventListener("click", saveSettings);
+document.getElementById("setReset").addEventListener("click", () => {
+  buildSettingsForm(JSON.parse(JSON.stringify(SETTINGS_DEFAULTS)));
+  showSettingsTab(settingsTab);
+  document.getElementById("setStatus").textContent = "The 14 October 2026 values are in the form. Save to use them.";
+});
+settingsDlg.addEventListener("click", e => { if (e.target === settingsDlg) settingsDlg.close(); });
+
+connect();
+</script>
+
+</body></html>

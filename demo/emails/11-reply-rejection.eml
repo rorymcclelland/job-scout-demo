@@ -1,0 +1,17 @@
+Authentication-Results: mailin.protonmail.ch; dkim=pass (2048-bit key) header.d=greenhouse-mail.io header.i=@greenhouse-mail.io
+From: "Orchard Systems Recruiting" <no-reply@greenhouse-mail.io>
+To: sam.calder@example.com
+Subject: Your application to Orchard Systems
+Date: Mon, 19 Oct 2026 11:20:00 +0100
+Message-ID: <demo-rejection@greenhouse-mail.io>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+
+Hi Sam,
+
+Thank you for applying for the Director of Product role at Orchard Systems and for the time you put into your application.
+
+Unfortunately, we have decided not to move forward with your application at this time.
+
+Best wishes,
+The Orchard Systems Talent Team

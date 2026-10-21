@@ -1,0 +1,5 @@
+{
+  "_about": "The two boards' artifact ids (H16). validate.py demoboard lets the demo write only to the demo board. Publish demo/board/demo-board.html to your own Claude account and put its id here; put your real board's id under real, if you have one.",
+  "real": null,
+  "demo": null
+}

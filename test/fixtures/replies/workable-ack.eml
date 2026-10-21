@@ -1,0 +1,14 @@
+Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=workablemail.com
+From: "Seedling" <noreply@workablemail.com>
+To: sam@example.com
+Subject: We received your application
+Date: Fri, 16 Oct 2026 09:12:00 +0100
+Message-ID: <workable-ack@test>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+
+Hi Sam,
+
+Thank you for applying for the Fractional Chief Product Officer role at Seedling. We have received your application and will be in touch.
+
+Seedling

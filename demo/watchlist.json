@@ -1,0 +1,8 @@
+{
+ "written": "2026-10-19",
+ "entries": [
+  {"cardId": "demo-lumenpay-head-of-product", "company": "LumenPay", "role": "Head of Product, Merchant Platform", "status": "applied", "domains": ["lumenpay.example"], "recruiters": []},
+  {"cardId": "demo-orchard-director-of-product", "company": "Orchard Systems", "role": "Director of Product", "status": "applied", "domains": [], "recruiters": []},
+  {"cardId": "demo-northgate-head-of-product", "company": "Northgate Finance", "role": "Head of Product, Lending", "status": "applied", "domains": ["northgate-finance.example"], "recruiters": []}
+ ]
+}

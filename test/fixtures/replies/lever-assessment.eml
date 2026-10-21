@@ -1,0 +1,18 @@
+Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=hire.lever.co
+From: "Seedling Hiring" <no-reply@hire.lever.co>
+To: sam@example.com
+Subject: Next step: your Seedling take-home task
+Date: Fri, 16 Oct 2026 09:12:00 +0100
+Message-ID: <lever-assessment@test>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+
+Hi Sam,
+
+Thank you for your interest in the Fractional Chief Product Officer role at Seedling. As a next step we would like you to complete a short take-home task.
+
+Please complete the take-home task by 24 October 2026 using the link below.
+
+https://hire.lever.co/example/task
+
+The Seedling team

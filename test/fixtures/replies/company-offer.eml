@@ -1,0 +1,16 @@
+Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=acme-ai.example
+From: "Jo Smith" <jo@acme-ai.example>
+To: sam@example.com
+Subject: Offer: Head of Product at Acme AI
+Date: Mon, 26 Oct 2026 16:00:00 +0000
+Message-ID: <company-offer@test>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+
+Hi Sam,
+
+I am delighted to offer you the role of Head of Product at Acme AI. The formal offer letter is attached.
+
+Please let us know your decision by 2 November 2026.
+
+Jo

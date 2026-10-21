@@ -1,0 +1,47 @@
+{
+ "_about": "Demo adverts (H16): served to the reader from this folder by npm run demo; nothing is fetched from the internet. All made up.",
+ "adverts": [
+  {
+   "company": "Corvid Labs",
+   "title": "Head of Product",
+   "url": "https://careers.corvid-labs.example/jobs/corvid-labs-head-of-product",
+   "file": "corvid-labs-head-of-product.html",
+   "hostile": false
+  },
+  {
+   "company": "Brightwater Analytics",
+   "title": "Director of Product, Data Platform",
+   "url": "https://careers.brightwater-analytics.example/jobs/brightwater-director-of-product",
+   "file": "brightwater-director-of-product.html",
+   "hostile": false
+  },
+  {
+   "company": "Tallow",
+   "title": "Senior Product Manager",
+   "url": "https://careers.tallow.example/jobs/tallow-senior-pm",
+   "file": "tallow-senior-pm.html",
+   "hostile": false
+  },
+  {
+   "company": "Marlow Health",
+   "title": "Principal Product Manager, AI Assistants",
+   "url": "https://careers.marlow-health.example/jobs/marlow-health-principal-pm",
+   "file": "marlow-health-principal-pm.html",
+   "hostile": true
+  },
+  {
+   "company": "Ashgrove Travel",
+   "title": "VP Product",
+   "url": "https://careers.ashgrove-travel.example/jobs/ashgrove-vp-product",
+   "file": "ashgrove-vp-product.html",
+   "hostile": false
+  },
+  {
+   "company": "Kestrel Pay",
+   "title": "Lead Product Manager, Payments Platform",
+   "url": "https://careers.kestrel-pay.example/jobs/kestrel-pay-lead-pm",
+   "file": "kestrel-pay-lead-pm.html",
+   "hostile": false
+  }
+ ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "job-scout",
+  "version": "0.14.0",
+  "private": true,
+  "description": "Reads LinkedIn, hackajob, Google and Microsoft job alerts, drops what does not fit, and hands the rest to Claude to score, rank and pack each morning.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "scout": "node --env-file-if-exists=.env src/scout.ts",
+    "check-bridge": "node --env-file-if-exists=.env src/check-bridge.ts",
+    "test": "node --import ./test/setup.ts --test \"test/**/*.test.ts\"",
+    "test:tools": "python -m unittest discover -s tools -p \"test_*.py\"",
+    "typecheck": "tsc",
+    "spike:fetch": "node spike/fetch.ts",
+    "spike:model": "node spike/model.ts",
+    "share-email": "node --env-file-if-exists=.env src/share-email.ts",
+    "read-adverts": "node --env-file-if-exists=.env src/read-adverts.ts",
+    "spike:retest": "node spike/retest.ts",
+    "read-replies": "node --env-file-if-exists=.env src/read-replies.ts",
+    "grade-replies": "node --env-file-if-exists=.env src/grade-replies.ts",
+    "eval:reader": "node --env-file-if-exists=.env src/eval-reader.ts",
+    "redteam": "node --env-file-if-exists=.env src/redteam.ts",
+
+    "docs:facts": "python tools/doc_facts.py",
+    "demo": "node src/demo.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -1,0 +1,28 @@
+Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=acme-ai.example
+From: "Acme AI Calendar" <calendar@acme-ai.example>
+To: sam@example.com
+Subject: Invitation: Sam / Acme AI first call
+Date: Fri, 16 Oct 2026 09:12:00 +0100
+Message-ID: <calendar-invite@test>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B0UNDARY7"
+
+--B0UNDARY7
+Content-Type: text/plain; charset=UTF-8
+
+You have been invited to: Sam / Acme AI first call, Tuesday 20 October 2026, 14:00 to 14:45 (Europe/London).
+--B0UNDARY7
+Content-Type: text/calendar; charset=UTF-8; method=REQUEST
+Content-Disposition: attachment; filename=invite.ics
+
+BEGIN:VCALENDAR
+VERSION:2.0
+METHOD:REQUEST
+BEGIN:VEVENT
+DTSTART;TZID=Europe/London:20261020T140000
+DTEND;TZID=Europe/London:20261020T144500
+SUMMARY:Sam / Acme AI first call
+ORGANIZER;CN=Jo Smith:mailto:jo@acme-ai.example
+END:VEVENT
+END:VCALENDAR
+--B0UNDARY7--

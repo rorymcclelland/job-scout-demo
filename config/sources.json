@@ -1,0 +1,78 @@
+{
+  "_about": "Where the scout looks (backlog B1), confirmed 14 October 2026: LinkedIn and hackajob alert emails, read through Proton Mail Bridge; Google's and Microsoft's own careers alerts added 16 October 2026 (B12). LinkedIn and hackajob already do the first cut with the owner's own saved searches; the scout refines what they send. 'senders' are IMAP FROM searches, which match any part of the sender's address.",
+  "senders": [
+    {
+      "source": "linkedin",
+      "from": "jobalerts-noreply@linkedin.com"
+    },
+    {
+      "source": "linkedin",
+      "from": "jobs-noreply@linkedin.com"
+    },
+    {
+      "source": "linkedin",
+      "from": "jobs-listings@linkedin.com"
+    },
+    {
+      "source": "hackajob",
+      "from": "hackajob"
+    },
+    {
+      "source": "google",
+      "from": "careers-noreply@google.com"
+    },
+    {
+      "source": "microsoft",
+      "from": "careers.microsoft.com"
+    }
+  ],
+  "firstRunLookbackDays": 7,
+  "replySenders": [
+    {
+      "system": "greenhouse",
+      "domain": "greenhouse-mail.io"
+    },
+    {
+      "system": "greenhouse",
+      "domain": "us.greenhouse-mail.io"
+    },
+    {
+      "system": "lever",
+      "domain": "hire.lever.co"
+    },
+    {
+      "system": "ashby",
+      "domain": "ashbyhq.com"
+    },
+    {
+      "system": "workable",
+      "domain": "workablemail.com"
+    },
+    {
+      "system": "workday",
+      "domain": "myworkday.com"
+    },
+    {
+      "system": "smartrecruiters",
+      "domain": "smartrecruiters.com"
+    },
+    {
+      "system": "teamtailor",
+      "domain": "teamtailor-mail.com"
+    },
+    {
+      "system": "personio",
+      "domain": "personio.de"
+    },
+    {
+      "system": "linkedin",
+      "domain": "linkedin.com"
+    }
+  ],
+  "replies": {
+    "_about": "Sprint 6a (I1): replies to applications. Searched read-only, from the hiring systems above and the companies and recruiters on data\\watchlist.json. 'firstLookDays' is how far back the first run looks (60 days); every move from that first look is a suggestion.",
+    "enabled": true,
+    "firstLookDays": 60
+  },
+  "_aboutReplySenders": "Hiring systems' mail domains (I1). Their application emails come from these; their marketing domains (greenhouse.io, lever.co) are left out on purpose, so newsletters are not read as replies. LinkedIn is special: only its application-update emails count, matched by subject."
+}

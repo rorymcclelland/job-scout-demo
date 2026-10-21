@@ -1,0 +1,9 @@
+{
+  "_about": "The demo's settings (H16), laid over config\\constraints.json and config\\sources.json by npm run demo. Made up.",
+  "version": 1,
+  "rubricVersion": 3,
+  "scoring": { "threshold": 60, "lookBand": 55, "dailyCap": 3 },
+  "targets": { "companies": ["Corvid Labs"], "packBelowLine": false, "extraPlaces": 1 },
+  "control": { "paused": false, "advertsPerRun": 10 },
+  "reader": { "enabled": true, "model": "qwen2.5:14b", "useForScoring": false, "waitMinutes": 0 }
+}

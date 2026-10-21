@@ -1,0 +1,10 @@
+Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=greenhouse.io
+From: "Greenhouse" <news@greenhouse.io>
+To: sam@example.com
+Subject: Webinar: hiring in 2027
+Date: Fri, 16 Oct 2026 09:12:00 +0100
+Message-ID: <greenhouse-newsletter@test>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+
+Join our webinar on structured hiring. Unsubscribe any time.
