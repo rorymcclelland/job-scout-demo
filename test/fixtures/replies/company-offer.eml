@@ -1,4 +1,4 @@
-Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=acme-ai.example
+Authentication-Results: mx.mail.example; dkim=pass header.d=acme-ai.example
 From: "Jo Smith" <jo@acme-ai.example>
 To: sam@example.com
 Subject: Offer: Head of Product at Acme AI

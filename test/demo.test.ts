@@ -69,6 +69,12 @@ test("H16.1 the demo writes only under data\\demo\\<date>, and never touches the
   assert.ok(r.roles.toScore >= 4, `${r.roles.toScore} roles to score`);
   assert.ok(r.adverts.read >= 4, `${r.adverts.read} adverts read`);
   assert.ok(calls.every((u) => u.startsWith("http://127.0.0.1:11434/")), "only Ollama is called through the real fetch");
+  // G11 (Sprint 10): both readers keep the local model's token counts, as Ollama reports them.
+  const runDir = path.join(demoHome, "runs", TODAY);
+  const specs = JSON.parse(fs.readFileSync(path.join(runDir, "specs", "summary.json"), "utf8"));
+  assert.equal(specs.tokens.out, 400 * r.adverts.read, "each advert read adds the reported output tokens");
+  const rep = JSON.parse(fs.readFileSync(path.join(runDir, "replies", "summary.json"), "utf8"));
+  assert.ok(rep.tokens && rep.tokens.out > 0, "the reply reader keeps its tokens too");
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

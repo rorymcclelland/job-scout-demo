@@ -11,7 +11,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VAULT = os.environ.get("JOB_SCOUT_VAULT") or os.path.join(ROOT, "..", "Professional development", "_context", "job-scout")
-COMMAND = re.compile(r"\b(validate\.py [a-z]+|replies\.py [a-z]+|ledger\.py add|build_pack\.py|ats_match\.py)\b")
+COMMAND = re.compile(r"\b(validate\.py [a-z]+|replies\.py [a-z]+|ledger\.py add|build_pack\.py|ats_match\.py|staleness\.py [a-z]+|runlog\.py [a-z]+)\b")
 
 
 def commands(paths):

@@ -196,7 +196,7 @@ test("filters 17 Oct: in the second market any product-related title passes, wha
 });
 
 test("filters 17 Oct: Mandarin required is flagged for the advert check", () => {
-  const v = judge(mk({ title: "Senior Product Manager", company: "Gogolook", location: "Tampines", workplace: null, excerpt: "Fluent Mandarin required; English a plus." }), constraints);
+  const v = judge(mk({ title: "Senior Product Manager", company: "Lionfish", location: "Tampines", workplace: null, excerpt: "Fluent Mandarin required; English a plus." }), constraints);
   assert.equal(v.kept, true, "the alert alone is not enough to drop it");
   assert.match(v.warnings.join(" ") + v.flags.join(" "), /Mandarin/);
 });

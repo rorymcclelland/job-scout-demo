@@ -1,6 +1,6 @@
 # Job Scout: configuration reference
 
-_Version 0.14 · 21 October 2026 · what can be changed, where, and when it takes effect_
+_Version 0.16 · 23 October 2026 · what can be changed, where, and when it takes effect_
 
 Every value that steers Job Scout lives in one of five places. This page says which, who reads it and when a change takes effect. Field-by-field formats and defaults are in [DATA](DATA.md#configuration). Terms are explained in the [glossary](GLOSSARY.md).
 
@@ -8,7 +8,7 @@ Every value that steers Job Scout lives in one of five places. This page says wh
 
 | Place | Holds | Changed by | Read by | Takes effect |
 | --- | --- | --- | --- | --- |
-| **Board Settings** (`settings/current` in the board's database) | Scoring weights, threshold, the worth-a-look band (`scoring.lookBand`, default 55, below the threshold), caps; pay floors; places; level and warning words; senders; target employers; reader model; letter length; CV location line; pause switch; adverts per run | The user, in the Settings dialog. Checked on entry, versioned, logged. No AI can write it | Parts 1 and 2 (at once); the PC code through `config\settings.json` | Scoring: the next morning run. Filters and senders: the mail read after that (one day later) |
+| **Board Settings** (`settings/current` in the board's database) | Scoring weights, threshold, the worth-a-look band (`scoring.lookBand`, default 55, below the threshold), caps; pay floors; places; level and warning words; senders; target employers; reader model; letter length; CV location line; pause switch; adverts per run; rebuilt packs a run and when a pack is probably stale (`packs.rebuildsPerRun`, `packs.staleAfterDays`); the prices for the run log's cost estimate (`costs.*`) | The user, in the Settings dialog. Checked on entry, versioned, logged. No AI can write it | Parts 1 and 2 (at once); the PC code through `config\settings.json` | Scoring: the next morning run. Filters and senders: the mail read after that (one day later) |
 | **`config\settings.json`** | A copy of the board's settings, without the change log | Part 1 or 2 only, when the board's version changes. Never edit by hand | The 06:30 mail read, laid over the two files below | The next mail read |
 | **`config\constraints.json`, `config\sources.json`** | The defaults the code falls back on when a setting is missing or invalid | The user or Claude, in a sprint, with tests | The mail read | The next mail read |
 | **The vault** (`_context\job-scout\`) | How each criterion is scored (`rubric.md`); what the scout knows about the user (`candidate-profile.md`); approved form answers; the agents' instructions | The user, or Claude with their approval | The cloud agents | The next run. Run the evaluations first (OPERATIONS) |

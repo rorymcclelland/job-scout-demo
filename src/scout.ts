@@ -31,14 +31,17 @@ import { readWatchlist } from "./inbox/watch.ts";
 import { replyCandidate, searchTerms, type Candidate } from "./inbox/senders.ts";
 import { createHash } from "node:crypto";
 import { pruneRuns } from "./retention.ts";
+import { checkAll, staleAfterDays } from "./staleness.ts";
 
 export interface RunOptions {
   days?: number;
   bridge: boolean;
   today?: string; // YYYY-MM-DD, for tests
+  /** G4: read again even though today's run is already scored (npm run scout -- --force). */
+  force?: boolean;
 }
 
-export async function run(settings: Settings, opts: RunOptions): Promise<{ folder: string; judged: Judged[]; health: Health; paused?: boolean }> {
+export async function run(settings: Settings, opts: RunOptions): Promise<{ folder: string; judged: Judged[]; health: Health; paused?: boolean; alreadyScored?: boolean }> {
   const today = opts.today ?? localDate(new Date());
   // Paused in the board's Settings (H4): read nothing, write nothing, and leave
   // the last-run date alone so the first run after un-pausing catches up.
@@ -46,12 +49,23 @@ export async function run(settings: Settings, opts: RunOptions): Promise<{ folde
     const health: Health = { since: "", bridge: "paused", emails: sourceCounts(), rolesBySource: sourceCounts(), partial: 0, problems: ["Paused in Settings: no mail was read."], untrusted: [] };
     return { folder: "", judged: [], health, paused: true };
   }
+  // G4 (Sprint 11): once part 2 has scored today's run (its digest exists), a second
+  // mail read the same day would rewrite the scored run's files. It reads nothing and
+  // leaves the last-run date alone, so tomorrow's read looks back far enough.
+  const scoredFolder = path.join(settings.dataDir, "runs", today);
+  if (!opts.force && isScored(scoredFolder)) {
+    const health: Health = { since: "", bridge: "not run", emails: sourceCounts(), rolesBySource: sourceCounts(), partial: 0, problems: [`Today's run (${today}) is already scored, so nothing was read. Tomorrow's run picks up anything new; use --force to read again now.`], untrusted: [] };
+    return { folder: scoredFolder, judged: [], health, alreadyScored: true };
+  }
   const state = readJson<{ lastRun?: string; inboxLastRun?: string; history?: Array<{ date: string } & Record<string, number | string>> }>(
     path.join(settings.dataDir, "state.json"), {});
   const since = sinceDate(today, state.lastRun, opts.days ?? null, settings.sources.firstRunLookbackDays);
 
   const health: Health = { since, bridge: "not configured", emails: sourceCounts(), rolesBySource: sourceCounts(), partial: 0, problems: [], untrusted: [], notes: [], emailFiles: [] };
   if (settings.settingsProblem) health.problems.push(settings.settingsProblem);
+  // G4: mornings with no run since the last one.
+  const missed = missedDays(settings.dataDir, state.lastRun, today);
+  if (missed.length) health.problems.push(`No run on ${missed.join(", ")}: the PC was off or asleep. Alerts from those days were read now; replies too.`);
   if (settings.credentialProblem) health.problems.push(settings.credentialProblem);
   const folder = path.join(settings.dataDir, "runs", today);
   fs.mkdirSync(folder, { recursive: true });
@@ -244,6 +258,16 @@ export async function run(settings: Settings, opts: RunOptions): Promise<{ folde
   for (const { id } of SOURCES) today_[id] = health.emails[id];
   const nextHistory = [...history, today_].slice(-14);
 
+  // BUG-9 (Sprint 11): replies found on an earlier morning but never read (the
+  // reader was stopped, or failed) are carried into today's list, so they are not lost.
+  if (repliesOn) {
+    const carried = carryReplies(settings.dataDir, today, replies, settings.emailStore);
+    if (carried.length) {
+      replies.push(...carried);
+      health.notes!.push(`Replies carried forward unread from earlier mornings: ${carried.length} (${[...new Set(carried.map((c) => c.carriedFrom))].join(", ")}).`);
+    }
+  }
+
   // 5. Write the run.
   if (repliesOn) {
     writeJson(path.join(folder, "replies", "found.json"), {
@@ -289,6 +313,15 @@ export async function run(settings: Settings, opts: RunOptions): Promise<{ folde
     inputs: { since, bridge: health.bridge, emails: health.emails },
     counts,
   });
+  // E16 (Sprint 10): how fresh each pack is, from what it was built from. Read-only;
+  // part 2 puts the result on Draft cards. A failure here never stops the run.
+  try {
+    writeJson(path.join(folder, "staleness.json"), checkAll(path.dirname(settings.contextDir), {
+      today, staleAfterDays: staleAfterDays(path.join(settings.root, "config")), settingsVersion: settings.constraints.settingsVersion ?? null,
+    }));
+  } catch (e) {
+    health.problems.push(`Pack staleness was not checked: ${(e as Error).message}`);
+  }
   // The scoring step reads this first, so a failed fetch is reported rather than
   // mistaken for a quiet day (G1).
   writeJson(path.join(folder, "status.json"), {
@@ -300,6 +333,7 @@ export async function run(settings: Settings, opts: RunOptions): Promise<{ folde
     untrustedLinesRemoved: health.untrusted.length,
     credentialSource: settings.credentialSource,
     problems: health.problems,
+    missed,
     counts,
     targets: settings.constraints.targets ?? null,
   });
@@ -360,6 +394,8 @@ export function expireCopies(storeRoot: string, today: string, days: number): nu
 /** One reply found (I1): no email text, only where it came from and hashes for threading. */
 export interface FoundReply {
   id: string;
+  /** BUG-9: the morning it was first found, when it was carried forward unread. */
+  carriedFrom?: string;
   file: string;
   day: string;
   date: string;
@@ -405,6 +441,66 @@ export function sinceDate(today: string, lastRun: string | undefined, days: numb
   return back(today, firstRunDays);
 }
 
+/** G4: a run part 2 has scored. A digest written after a failed mail read (SCOUT.md step 1 asks
+ *  for one, then a re-run) does not count, nor does one older than the run's status.json. */
+export function isScored(folder: string): boolean {
+  const digest = path.join(folder, "digest.md");
+  const statusFile = path.join(folder, "status.json");
+  if (!fs.existsSync(digest)) return false;
+  if (!fs.existsSync(statusFile)) return true;
+  const status = readJson<{ ok?: boolean }>(statusFile, {});
+  if (status.ok === false) return false;
+  return fs.statSync(digest).mtimeMs >= fs.statSync(statusFile).mtimeMs;
+}
+
+/** G4: the days after the last run and before today that have no run folder (at most 14). */
+export function missedDays(dataDir: string, lastRun: string | undefined, today: string): string[] {
+  if (!lastRun || !/^\d{4}-\d{2}-\d{2}$/.test(lastRun) || lastRun >= today) return [];
+  const out: string[] = [];
+  const d = new Date(`${lastRun}T12:00:00Z`);
+  for (let i = 0; i < 60 && out.length < 14; i++) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const day = d.toISOString().slice(0, 10);
+    if (day >= today) break;
+    if (!fs.existsSync(path.join(dataDir, "runs", day))) out.push(day);
+  }
+  return out;
+}
+
+const CARRY_DAYS = 7;
+const CARRY_MAX = 20;
+
+/** Replies found in the last week that part 2 has not yet acted on (BUG-9): their run's reader was
+ *  stopped or failed, or they were read by hand after part 2 had scored the day. Acted on means
+ *  listed in a `replies\\matched.json` as anything but unread. The week counts from the morning a
+ *  reply was first found, and a reply whose email has left the private store is not carried. */
+export function carryReplies(dataDir: string, today: string, already: FoundReply[], store?: string): FoundReply[] {
+  const runs = path.join(dataDir, "runs");
+  const start = new Date(`${today}T12:00:00Z`);
+  start.setUTCDate(start.getUTCDate() - CARRY_DAYS);
+  const from = start.toISOString().slice(0, 10);
+  let days: string[] = [];
+  try { days = fs.readdirSync(runs).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= from && d < today).sort(); } catch { return []; }
+  const read = new Set<string>();
+  const unread: FoundReply[] = [];
+  for (const d of days) {
+    const found = readJson<{ replies?: FoundReply[] }>(path.join(runs, d, "replies", "found.json"), {});
+    const matched = readJson<{ items?: Array<{ replyId?: string; action?: string }> }>(path.join(runs, d, "replies", "matched.json"), {});
+    for (const x of matched.items ?? []) if (x?.replyId && x.action !== "unread") read.add(x.replyId);
+    for (const f of found.replies ?? []) if (f?.id && f.file && f.day) unread.push({ ...f, carriedFrom: f.carriedFrom ?? d });
+  }
+  const have = new Set(already.map((x) => x.id));
+  const out: FoundReply[] = [];
+  for (const f of unread) {
+    if (read.has(f.id) || have.has(f.id) || (f.carriedFrom ?? "") < from) continue;
+    if (store && !fs.existsSync(path.join(store, f.day, f.file))) continue;
+    have.add(f.id);
+    out.push(f);
+    if (out.length >= CARRY_MAX) break;
+  }
+  return out;
+}
+
 export function localDate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -430,10 +526,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   const opts: RunOptions = {
     bridge: !args.includes("--no-bridge"),
     days: daysAt >= 0 ? Number(args[daysAt + 1]) : undefined,
+    force: args.includes("--force"),
   };
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   run(loadSettings(root), opts)
-    .then(({ folder, judged, health, paused }) => {
+    .then(({ folder, judged, health, paused, alreadyScored }) => {
+      if (alreadyScored) {
+        console.log(`Job Scout: ${health.problems[0]}`);
+        return;
+      }
       if (paused) {
         console.log("Job Scout is paused in the board's Settings: no mail was read. Un-pause it there; the next run catches up.");
         return;

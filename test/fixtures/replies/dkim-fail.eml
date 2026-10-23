@@ -1,4 +1,4 @@
-Authentication-Results: mailin.protonmail.ch; dkim=fail (body hash did not verify) header.d=greenhouse-mail.io
+Authentication-Results: mx.mail.example; dkim=fail (body hash did not verify) header.d=greenhouse-mail.io
 From: "Northwind Recruiting" <no-reply@greenhouse-mail.io>
 To: sam@example.com
 Subject: Update on your Northwind application

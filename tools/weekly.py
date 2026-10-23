@@ -158,7 +158,39 @@ def eval_section(latest=None, reader=None):
     return out + [""]
 
 
-def summarise(metrics_rows, cards, start: date, end: date, ledger_entries=None, reply_rows=None, evaluation=None) -> str:
+def runs_section(runs, start: date, end: date):
+    """G11 (Sprint 10): the week's morning runs from the board's runs collection, and the change from the week before."""
+    docs = [r.get("data", r) for r in runs or [] if isinstance(r, dict)]
+    def week(s, e):
+        return [d for d in docs if in_week(str(d.get("date", "")), s, e)]
+    def totals(ws):
+        cost = sum(d["cost"] for d in ws if isinstance(d.get("cost"), (int, float)))
+        short = sum(int(d.get("shortlisted") or 0) for d in ws)
+        return cost, short, (cost / short if short else None)
+    by_date = lambda ws: sorted(ws, key=lambda d: str(d.get("date", "")))
+    this, last = by_date(week(start, end)), by_date(week(start - timedelta(days=7), start - timedelta(days=1)))
+    out = ["## Morning runs (G11)", ""]
+    if not this:
+        out += ["No run log this week.", ""]
+        return out
+    cur = this[-1].get("currency") or "USD"
+    # Costs in another currency (the prices were changed mid-week) are left out, not added up.
+    this = [d for d in this if (d.get("currency") or "USD") == cur]
+    last = [d for d in last if (d.get("currency") or "USD") == cur]
+    cost, short, per = totals(this)
+    money = lambda v: "none" if v is None else f"{cur} {v:.2f}"
+    line = f"{len(this)} runs, {short} shortlisted, estimated cost {money(cost)}, {money(per)} per shortlisted role"
+    if last:
+        lcost, lshort, lper = totals(last)
+        bits = [f"cost {'up' if cost > lcost else 'down'} {money(abs(cost - lcost))}" if abs(cost - lcost) >= 0.005 else "cost the same"]
+        if per is not None and lper is not None:
+            bits.append(f"per shortlisted role {'up' if per > lper else 'down'} {money(abs(per - lper))}" if abs(per - lper) >= 0.005 else "per shortlisted role the same")
+        line += f" ({', '.join(bits)} on the week before)"
+    out += [line + ". Costs are estimates (method " + ", ".join(sorted({str(d.get('method')) for d in this})) + "): read them for the change, not as a bill.", ""]
+    return out
+
+
+def summarise(metrics_rows, cards, start: date, end: date, ledger_entries=None, reply_rows=None, evaluation=None, runs=None) -> str:
     week = [r for r in metrics_rows if in_week(r["date"], start, end)]
     found = sum(int(r["roles_found"]) for r in week)
     scored = sum(int(r["scored"]) for r in week)
@@ -254,6 +286,9 @@ def summarise(metrics_rows, cards, start: date, end: date, ledger_entries=None, 
     if evaluation is not None:
         out.extend(eval_section(*evaluation))
 
+    if runs is not None:
+        out.extend(runs_section(runs, start, end))
+
     out.append("## Reasons you gave for passing")
     out.append("")
     if archived_week:
@@ -275,6 +310,7 @@ def main():
     ap.add_argument("--replies", help="Job Scout\\data\\replies.csv (Sprint 6a), if it exists")
     ap.add_argument("--eval", help="_context\\job-scout\\eval\\latest.json (H8), if it exists")
     ap.add_argument("--reader", help="Job Scout\\data\\eval\\reader-latest.json (H8), if it exists")
+    ap.add_argument("--runs", help="the board's runs collection as a list of {id, data} (G11), if it exists")
     ap.add_argument("--out")
     a = ap.parse_args()
     end = date.fromisoformat(a.week_ending)
@@ -293,7 +329,7 @@ def main():
     if a.replies:
         with open(a.replies, newline="") as f:
             reply_rows = list(csv.DictReader(f))
-    text = summarise(rows, cards, start, end, read_ledgers(a.ledgers) if a.ledgers else None, reply_rows, (load(a.eval), load(a.reader)))
+    text = summarise(rows, cards, start, end, read_ledgers(a.ledgers) if a.ledgers else None, reply_rows, (load(a.eval), load(a.reader)), load(a.runs))
     if a.out:
         with open(a.out, "w", encoding="utf-8") as f:
             f.write(text + "\n")

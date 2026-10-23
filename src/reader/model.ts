@@ -32,14 +32,15 @@ export const SYSTEM = [
   "pay: only if the advert states a figure, copied exactly into asWritten; otherwise null. Never guess pay, a place, a working pattern or a requirement: use 'unknown' or an empty list instead.",
 ].join("\n");
 
-export interface Extracted { spec: Spec | null; error?: string; seconds: number; tokensPerSecond: number | null }
+export interface Extracted { spec: Spec | null; error?: string; seconds: number; tokensPerSecond: number | null; tokensIn?: number; tokensOut?: number }
 
 export async function extract(host: string, model: string, advert: string, fetchFn: Fetch = fetch): Promise<Extracted> {
   const x = await chat<Spec>(host, model, SYSTEM, `<<<ADVERT\n${advert}\nADVERT>>>`, SPEC_SCHEMA, fetchFn);
-  return { spec: x.value, error: x.error, seconds: x.seconds, tokensPerSecond: x.tokensPerSecond };
+  return { spec: x.value, error: x.error, seconds: x.seconds, tokensPerSecond: x.tokensPerSecond, tokensIn: x.tokensIn, tokensOut: x.tokensOut };
 }
 
-export interface Chatted<T> { value: T | null; error?: string; seconds: number; tokensPerSecond: number | null }
+/** tokensIn and tokensOut: what Ollama reports it read and wrote (G11, Sprint 10); absent when it reports nothing. */
+export interface Chatted<T> { value: T | null; error?: string; seconds: number; tokensPerSecond: number | null; tokensIn?: number; tokensOut?: number }
 
 /** One call to the local model: no tools, a fixed JSON shape, temperature 0. Shared by the advert and reply readers. */
 export async function chat<T>(host: string, model: string, system: string, user: string, schema: object, fetchFn: Fetch = fetch): Promise<Chatted<T>> {
@@ -48,16 +49,17 @@ export async function chat<T>(host: string, model: string, system: string, user:
     messages: [{ role: "system", content: system }, { role: "user", content: user }] };
   try {
     const res = await fetchFn(`${host}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(300_000) });
-    const j = (await res.json()) as { message?: { content?: string }; eval_count?: number; eval_duration?: number; error?: string };
+    const j = (await res.json()) as { message?: { content?: string }; eval_count?: number; eval_duration?: number; prompt_eval_count?: number; error?: string };
     const seconds = (Date.now() - t0) / 1000;
     const tokensPerSecond = j.eval_count && j.eval_duration ? j.eval_count / (j.eval_duration / 1e9) : null;
-    if (j.error) return { value: null, error: j.error, seconds, tokensPerSecond };
+    const used = { ...(Number.isFinite(j.prompt_eval_count) ? { tokensIn: j.prompt_eval_count } : {}), ...(Number.isFinite(j.eval_count) ? { tokensOut: j.eval_count } : {}) };
+    if (j.error) return { value: null, error: j.error, seconds, tokensPerSecond, ...used };
     try {
       const value = JSON.parse(j.message?.content ?? "") as T;
-      if (value === null || typeof value !== "object") return { value: null, error: "the model returned an empty answer", seconds, tokensPerSecond };
-      return { value, seconds, tokensPerSecond };
+      if (value === null || typeof value !== "object") return { value: null, error: "the model returned an empty answer", seconds, tokensPerSecond, ...used };
+      return { value, seconds, tokensPerSecond, ...used };
     } catch {
-      return { value: null, error: "the model's reply was not JSON", seconds, tokensPerSecond };
+      return { value: null, error: "the model's reply was not JSON", seconds, tokensPerSecond, ...used };
     }
   } catch (err) {
     return { value: null, error: (err as Error).message, seconds: (Date.now() - t0) / 1000, tokensPerSecond: null };

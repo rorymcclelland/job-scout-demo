@@ -1,4 +1,4 @@
-Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=hire.lever.co
+Authentication-Results: mx.mail.example; dkim=pass header.d=hire.lever.co
 From: "Seedling Hiring" <no-reply@hire.lever.co>
 To: sam@example.com
 Subject: Next step: your Seedling take-home task

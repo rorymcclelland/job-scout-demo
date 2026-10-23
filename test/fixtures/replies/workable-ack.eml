@@ -1,4 +1,4 @@
-Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=workablemail.com
+Authentication-Results: mx.mail.example; dkim=pass header.d=workablemail.com
 From: "Seedling" <noreply@workablemail.com>
 To: sam@example.com
 Subject: We received your application

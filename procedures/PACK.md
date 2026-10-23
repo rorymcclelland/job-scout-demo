@@ -30,7 +30,8 @@ One page, within the settings' word range (350 to 450 by default). Open on the a
 2. **Fix and rebuild** until it passes. If only the word count fails, revise once and rebuild with `"letterRevised": true`; a count still out of range then goes to "For your sign-off".
 3. **The AI-use answer:** `python3 tools/validate.py disclosure form-answers.md --bank <the approved answers>`. Record `"disclosure": "pass"` in `pack.json`.
 4. **ATS match:** `python3 tools/ats_match.py <spec or job-spec.md> <CV.md> <letter.md> --bank <term bank> --out ats.json --md ats.md`. The judgement of the missing terms is the reviewer's.
-5. **Review** (below), then check `pack.json` with `python3 tools/validate.py pack pack.json` and write it last.
+5. **Record what it was built from:** `python3 tools/staleness.py record --root <the folder the sources sit in> --cv <CV base> --letter <letter base> --notes <career notes folder> --highlights <highlight bank> --answers <form-answer bank> --spec <the advert as read> --settings-version <n> --into pack.json`, with every path relative to that root, so the PC can compare them each morning. When the advert was read in the cloud, not by the PC, write its facts (requirements as written, pay, place, closing date) to a small JSON and make the spec with `python3 tools/staleness.py facts advert-facts.json > spec.json`.
+6. **Review** (below), then check `pack.json` with `python3 tools/validate.py pack pack.json` and write it last. From 0.15.0 it refuses a new pack without `builtFrom`.
 
 ## Review
 
@@ -41,6 +42,10 @@ A second agent that did not write the pack checks it before `pack.json`. It read
 3. **Check its answer:** `python3 tools/validate.py claims claims.json --cv <CV.md> --letter <letter.md> --ats ats.json --vault <its folder> --before before.json --pack <pack folder>`. It confirms every quote is really in the record, every sentence was judged once, and the pack did not change during review. On a failure, call it once more; a second failure goes in Problems.
 4. **One revision:** revise only the `unsupported` lines, rebuild, and review again with `"round": 2`. Never a third round.
 5. **Then** list every line still `unsupported` at the top of "For your sign-off", every `hedged` line under "Suggestions" (never applied by you), and the reviewer's ATS judgement beside the table. The card's `reviewFlags` is the number of unsupported lines left.
+
+## Rebuilding a pack
+
+When SCOUT.md step 8a asks for one (the user pressed **Rebuild pack** on a Draft card, or the advert changed): only for a Draft card with no applied date; from today's advert, bases, notes, banks and settings, not from the old pack; into a **new** folder, `<Company> - <Role> (rebuilt <date>)`, never over the old one; with the same build, checks, review and `builtFrom`. The card gets `rebuilt: { folder, built, cause, reason }` and `rebuild: null`; the user chooses on the card, **Use the rebuilt pack** or **Dismiss**.
 
 ## The board card
 

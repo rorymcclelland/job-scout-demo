@@ -1,4 +1,4 @@
-Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=acme-ai.example
+Authentication-Results: mx.mail.example; dkim=pass header.d=acme-ai.example
 From: "Acme AI Calendar" <calendar@acme-ai.example>
 To: sam@example.com
 Subject: Invitation: Sam / Acme AI first call

@@ -1,4 +1,4 @@
-Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=linkedin.com
+Authentication-Results: mx.mail.example; dkim=pass header.d=linkedin.com
 From: "LinkedIn" <jobs-noreply@linkedin.com>
 To: sam@example.com
 Subject: Your application was viewed by Remoto

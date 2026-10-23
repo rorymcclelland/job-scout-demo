@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { loadSettings } from "../src/config.ts";
 import { fetchMessages } from "../src/imap.ts";
-import { run } from "../src/scout.ts";
+import { isScored, missedDays, run } from "../src/scout.ts";
 
 const root = path.join(import.meta.dirname, "..");
 const fixtures = path.join(import.meta.dirname, "fixtures");
@@ -171,4 +171,37 @@ test("imap: logs in, opens read-only, searches by sender, fetches with PEEK", as
   assert.ok(seen.some((c) => c === "UID FETCH 7 BODY.PEEK[]"), "fetches without marking as read");
   assert.ok(seen.some((c) => c === 'LOGIN "sam@example.com" "pa\\"ss"'), "quotes the password safely");
   assert.ok(!seen.some((c) => /STORE|EXPUNGE|DELETE|MOVE|COPY|APPEND|SELECT /.test(c)), "never changes the mailbox");
+});
+
+test("G4: a mail read after the run is scored writes nothing, keeps the last-run date, and --force reads again", async () => {
+  const { dir, env } = scratch();
+  const settings = loadSettings(root, env);
+  const first = await run(settings, { bridge: false, today: "2026-10-23" });
+  fs.writeFileSync(path.join(first.folder, "digest.md"), "# scored\n");
+  const status = fs.readFileSync(path.join(first.folder, "status.json"), "utf8");
+  const state = fs.readFileSync(path.join(dir, "data", "state.json"), "utf8");
+  const again = await run(settings, { bridge: false, today: "2026-10-23" });
+  assert.equal(again.alreadyScored, true);
+  assert.match(again.health.problems[0], /already scored/);
+  assert.equal(fs.readFileSync(path.join(first.folder, "status.json"), "utf8"), status, "the scored run's files are untouched");
+  assert.equal(fs.readFileSync(path.join(dir, "data", "state.json"), "utf8"), state);
+  const forced = await run(settings, { bridge: false, today: "2026-10-23", force: true });
+  assert.ok(!forced.alreadyScored);
+  // A digest written after a failed mail read (SCOUT.md step 1) does not block the re-run.
+  const status2 = JSON.parse(fs.readFileSync(path.join(first.folder, "status.json"), "utf8"));
+  fs.writeFileSync(path.join(first.folder, "status.json"), JSON.stringify({ ...status2, ok: false }));
+  fs.writeFileSync(path.join(first.folder, "digest.md"), "# Bridge failed\n");
+  assert.equal(isScored(first.folder), false);
+});
+
+test("G4: mornings with no run since the last one are reported as missed", async () => {
+  const { dir, env } = scratch();
+  const settings = loadSettings(root, env);
+  await run(settings, { bridge: false, today: "2026-10-20" });
+  const later = await run(settings, { bridge: false, today: "2026-10-23" });
+  assert.ok(later.health.problems.some((p) => /No run on 2026-10-21, 2026-10-22/.test(p)));
+  const status = JSON.parse(fs.readFileSync(path.join(later.folder, "status.json"), "utf8"));
+  assert.deepEqual(status.missed, ["2026-10-21", "2026-10-22"]);
+  assert.deepEqual(missedDays(path.join(dir, "data"), "2026-10-23", "2026-10-24"), []);
+  assert.deepEqual(missedDays(path.join(dir, "data"), undefined, "2026-10-24"), []);
 });

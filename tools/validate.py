@@ -58,6 +58,7 @@ code removes from alerts) in any text the AI wrote.
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -88,6 +89,8 @@ CARD_FIELDS = {
     # Scout fields.
     "source", "scoutId", "score", "rubricVersion", "runDate", "pack", "site", "alerted", "posted",
     "applicants", "warnings", "cvFormat", "target", "ledger", "atsMatch", "reviewFlags",
+    # E16 (Sprint 10): how fresh the pack is, from the morning's staleness.json.
+    "staleness",
 }
 CARD_REQUIRED = {"company", "role", "status", "source", "scoutId", "score", "rubricVersion", "runDate", "site"}
 PACK_FIELDS = {"id", "company", "role", "score", "built", "files", "checks"}
@@ -411,7 +414,152 @@ def check_pack(data):
             p.append(f"pack.json: checks not passed: {', '.join(failed)}")
     else:
         p.append("pack.json: checks must record the build checks")
+    # E16 (Sprint 10): packs built from 0.15.0 record what they were built from.
+    built = str(data.get("built") or "")
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", built) or built >= BUILT_FROM_SINCE or "builtFrom" in data:
+        p += check_built_from(data.get("builtFrom"), built)
     p += text_problems(data, "pack")
+    return p
+
+
+BUILT_FROM_SINCE = "2026-10-23"
+ADVERT_FACTS_SINCE = "2026-10-24"
+BUILT_FROM_FILES = {"cvBase": "file", "letterBase": "file", "careerNotes": "folder", "highlights": "file", "formAnswers": "file"}
+HASH16 = re.compile(r"^[0-9a-f]{16}$")
+
+
+def check_built_from(bf, pack_built=""):
+    if not isinstance(bf, dict):
+        return ["pack.json: builtFrom is missing: run tools/staleness.py record --into pack.json (E16)"]
+    p = []
+    if bf.get("version") != 1:
+        p.append("pack.json: builtFrom.version must be 1")
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(bf.get("built") or "")):
+        p.append("pack.json: builtFrom.built must be the build date")
+    # E17 (Sprint 11): from 24 Oct every pack keeps its advert's facts, however the advert was read.
+    # The later of the two dates counts, so a back-dated builtFrom does not skip the rule (Sprint 11 check).
+    when = max(str(bf.get("built") or ""), str(pack_built or ""))
+    adv = bf.get("advert")
+    if when >= ADVERT_FACTS_SINCE and not (isinstance(adv, dict) and isinstance(adv.get("mustHaves"), list) and adv["mustHaves"] and HASH16.match(str(adv.get("hash") or ""))):
+        p.append("pack.json: builtFrom.advert is missing or empty: pass --spec to staleness.py record (the PC's spec, or one made with staleness.py facts) (E17)")
+    files = bf.get("files") if isinstance(bf.get("files"), dict) else {}
+    for key, kind in BUILT_FROM_FILES.items():
+        ref = files.get(key)
+        if not isinstance(ref, dict):
+            p.append(f"pack.json: builtFrom.files has no {key}")
+            continue
+        rel = str(ref.get("path") or "")
+        parts = re.split(r"[\\/]", rel)
+        if not rel or ".." in parts or re.match(r"^([A-Za-z]:|[\\/])", rel):
+            p.append(f"pack.json: builtFrom.files.{key}.path must be inside Professional development")
+        if ref.get("kind") != kind or not HASH16.match(str(ref.get("hash") or "")):
+            p.append(f"pack.json: builtFrom.files.{key} must be a {kind} with a 16-character hash")
+    return p
+
+
+# E15 and E16 (Sprint 10): the morning run's patches to existing cards for packs: how fresh
+# the pack is, and a rebuilt pack waiting for the owner's choice. Draft cards only.
+STALE_LEVELS = ("fresh", "probably", "stale")
+# BUG-8 (Sprint 11): packs may sit one folder down, in a folder of applications.
+REBUILT_FOLDER = re.compile(r"^Professional development\\(?:[^\\/:*?\"<>|]+\\)?[^\\/:*?\"<>|]+ \(rebuilt \d{4}-\d{2}-\d{2}\)$")
+
+
+REBUILT_SUFFIX = re.compile(r" \(rebuilt \d{4}-\d{2}-\d{2}\)$")
+
+
+def _rebuilt_place(label, folder, card):
+    """Where a rebuilt pack may go (Sprint 11 check): beside the old pack, named after it, never over it or
+    over a rebuild still waiting for the owner's choice. Folder names are compared as Windows does, ignoring case."""
+    p = []
+    parts = folder.split("\\")
+    old_parts = [x for x in re.split(r"[\\/]", str(card.get("pack") or "")) if x]
+    old_parent = old_parts[:-1]
+    old_name = REBUILT_SUFFIX.sub("", old_parts[-1]) if old_parts else ""
+    parent = parts[:-1]
+    # Older cards name the pack without the folder it sits in, so a pack named directly under
+    # Professional development may be rebuilt one folder down, in any folder that is not the vault's own.
+    legacy = [x.lower() for x in old_parent] == ["professional development"] and len(parent) == 2
+    if [x.lower() for x in parent] != [x.lower() for x in old_parent] and not (legacy and not parent[1].startswith(("_", "."))):
+        p.append(f"{label}: a rebuilt pack goes beside the old one ({chr(92).join(old_parent) or 'its folder'}), nowhere else")
+    if REBUILT_SUFFIX.sub("", parts[-1]).lower() != old_name.lower():
+        p.append(f"{label}: a rebuilt pack is named after the old one: {old_name} (rebuilt <date>)")
+    taken = {str(card.get("pack") or "").lower().split("\\")[-1]}
+    if isinstance(card.get("rebuilt"), dict):
+        taken.add(str(card["rebuilt"].get("folder") or "").lower().split("\\")[-1])
+    if parts[-1].lower() in taken:
+        p.append(f"{label}: a rebuilt pack goes in a new folder, never over the old one or a rebuild still waiting")
+    return p
+
+
+def check_packpatch(data, existing, settings=None):
+    p = []
+    if not isinstance(data, dict) or not isinstance(data.get("patches"), list):
+        return ["packpatch: must be {\"patches\": [{\"cardId\", \"patch\"}]}"]
+    if existing is None:
+        return ["packpatch: needs --existing, the board's applications"]
+    board = {c.get("id"): c.get("data") or {} for c in existing if isinstance(c, dict)}
+    cap = ((settings or {}).get("packs") or {}).get("rebuildsPerRun", 2)
+    cap = cap if isinstance(cap, int) and not isinstance(cap, bool) and 0 <= cap <= 10 else 2
+    rebuilt = 0
+    for n, pt in enumerate(data["patches"]):
+        if not isinstance(pt, dict) or not isinstance(pt.get("patch") or {}, dict):
+            p.append(f"packpatch[{n}]: must be {{cardId, patch}}")
+            continue
+        cid, patch = pt.get("cardId"), pt.get("patch") or {}
+        label = f"packpatch[{n}] {cid}"
+        if cid not in board:
+            p.append(f"{label}: no such card on the board; ignored")
+            continue
+        card = board[cid]
+        if _stage(card.get("status")) != "draft" or card.get("applied"):
+            p.append(f"{label}: the card is not a Draft (or has an applied date); a sent pack is never flagged or rebuilt")
+            continue
+        if not card.get("pack"):
+            p.append(f"{label}: the card has no pack")
+        extra = sorted(set(patch) - {"staleness", "rebuilt", "rebuild", "log"})
+        if extra:
+            p.append(f"{label}: may change only staleness, rebuilt, rebuild and log, not {', '.join(extra)}")
+        if "staleness" in patch:
+            st = patch["staleness"]
+            if not isinstance(st, dict) or st.get("level") not in STALE_LEVELS:
+                p.append(f"{label}: staleness.level must be one of {', '.join(STALE_LEVELS)}")
+            else:
+                rs = st.get("reasons")
+                if not isinstance(rs, list) or len(rs) > 6 or not all(isinstance(r, str) and 0 < len(r) <= 120 for r in rs):
+                    p.append(f"{label}: staleness.reasons must be up to six short lines")
+                if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(st.get("checked") or "")):
+                    p.append(f"{label}: staleness.checked must be a date")
+        if "rebuilt" in patch:
+            rb = patch["rebuilt"]
+            rebuilt += 1
+            if not isinstance(rb, dict) or not REBUILT_FOLDER.match(str(rb.get("folder") or "")) or ".." in str(rb.get("folder")):
+                p.append(f"{label}: rebuilt.folder must be Professional development\\<Company> - <Role> (rebuilt <date>)")
+            else:
+                p += _rebuilt_place(label, rb["folder"], card)
+                if rb.get("cause") not in ("request", "advert"):
+                    p.append(f"{label}: rebuilt.cause must be request (the owner asked) or advert (E13)")
+                elif rb["cause"] == "request" and not (isinstance(card.get("rebuild"), dict) and card["rebuild"].get("requested")):
+                    p.append(f"{label}: the card has no rebuild request")
+                if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(rb.get("built") or "")):
+                    p.append(f"{label}: rebuilt.built must be a date")
+                if rb.get("reason") is not None and (not isinstance(rb["reason"], str) or len(rb["reason"]) > 200):
+                    p.append(f"{label}: rebuilt.reason must be at most 200 characters")
+            if patch.get("rebuild", "missing") is not None:
+                p.append(f"{label}: a rebuilt pack clears the request (rebuild: null)")
+        elif "rebuild" in patch:
+            p.append(f"{label}: only the owner writes rebuild; the run clears it only with a rebuilt pack")
+        if "log" in patch:
+            old_log = card.get("log") or []
+            new_log = patch["log"]
+            if not isinstance(new_log, list) or new_log[: len(old_log)] != old_log:
+                p.append(f"{label}: the card's log may only be added to, never changed")
+            else:
+                for e in new_log[len(old_log):]:
+                    if not isinstance(e, dict) or e.get("by") != "scout" or not isinstance(e.get("text"), str) or len(e["text"]) > 600:
+                        p.append(f"{label}: each new log entry must be the scout's, with text")
+        p += text_problems(patch.get("staleness") or {}, label + " staleness")
+    if rebuilt > cap:
+        p.append(f"packpatch: {rebuilt} rebuilt packs; at most {cap} a run (Settings, packs.rebuildsPerRun)")
     return p
 
 
@@ -778,7 +926,7 @@ def check_moves(data, existing):
 DOC_FIELDS = {
     "replies": {"replyId", "cardId", "company", "role", "domain", "date", "type", "action", "note", "offer", "seen", "source", "created", "warnings"},
     "todos": {"replyId", "cardId", "company", "role", "domain", "ask", "askBy", "done", "source", "created", "warnings"},
-    "events": {"replyId", "cardId", "company", "role", "domain", "kind", "start", "end", "zone", "zoneAssumed", "title", "asWritten", "group", "source", "created"},
+    "events": {"replyId", "cardId", "company", "role", "domain", "kind", "start", "end", "zone", "zoneAssumed", "title", "asWritten", "group", "source", "created", "fromText"},
 }
 DOC_ID = re.compile(r"^r-[0-9a-f]{12}(-(?:c|d|[1-6]))?$")
 ZONE_RX = re.compile(r"^(UTC|[A-Z][A-Za-z_]+/[A-Z][A-Za-z_]+)$")
@@ -830,7 +978,65 @@ def check_docs(data, existing_ids=None):
     return p
 
 
-def validate(kind, data, settings=None, existing=None, candidates=None, demo=False):
+RUN_FIELDS = {"date", "status", "found", "toScore", "dropped", "known", "analysed", "shortlisted", "worthALook", "packs",
+              "advertsRead", "minutes", "steps", "localTokens", "cloudTokens", "cost", "currency", "perShortlisted", "estimated",
+              "method", "backfilled", "ledger"}
+RUN_COUNTS = ("found", "toScore", "dropped", "known", "analysed", "shortlisted", "worthALook", "packs", "advertsRead", "minutes", "steps")
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def check_runlog(data, folder=None):
+    """G11 (Sprint 10): a run document for the board's Runs tab, one or a list (backfill). Written by part 2; the board never writes it."""
+    docs = data if isinstance(data, list) else [data]
+    p = []
+    for n, d in enumerate(docs):
+        label = f"run[{n}]"
+        if not isinstance(d, dict):
+            p.append(f"{label}: must be an object")
+            continue
+        label = f"run {d.get('date', n)}"
+        extra = sorted(set(d) - RUN_FIELDS)
+        if extra:
+            p.append(f"{label}: fields not allowed: {', '.join(extra)}")
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(d.get("date") or "")):
+            p.append(f"{label}: date must be the run folder's date (YYYY-MM-DD); it is the document's id")
+        elif folder and not isinstance(data, list) and d["date"] != os.path.basename(os.path.normpath(folder)):
+            p.append(f"{label}: date is not the run folder's ({os.path.basename(os.path.normpath(folder))})")
+        if d.get("status") not in ("done", "partial", "failed", "none"):
+            p.append(f"{label}: status must be done, partial, failed or none")
+        for k in RUN_COUNTS:
+            v = d.get(k)
+            if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+                p.append(f"{label}: {k} must be a whole number, 0 or more")
+        for k in ("localTokens", "cloudTokens"):
+            t = d.get(k)
+            if not isinstance(t, dict) or set(t) != {"in", "out"} or not all(isinstance(t[x], int) and not isinstance(t[x], bool) and t[x] >= 0 for x in ("in", "out")):
+                p.append(f"{label}: {k} must be {{in, out}}, whole numbers, 0 or more")
+        cost = d.get("cost")
+        if not _num(cost) or cost < 0:
+            p.append(f"{label}: cost must be a number, 0 or more")
+        per = d.get("perShortlisted")
+        if per is not None and (not _num(per) or per < 0):
+            p.append(f"{label}: perShortlisted must be a number or empty")
+        if d.get("shortlisted") == 0 and per is not None:
+            p.append(f"{label}: perShortlisted must be empty when nothing was shortlisted")
+        if not {"cloudTokens", "cost", "perShortlisted"} <= set(d.get("estimated") or []):
+            p.append(f"{label}: the estimates (cloudTokens, cost, perShortlisted) must be labelled as estimated")
+        if not isinstance(d.get("method"), int) or isinstance(d.get("method"), bool) or d.get("method", 0) < 1:
+            p.append(f"{label}: method must be the estimate's version, 1 or more")
+        if not isinstance(d.get("currency"), str) or not 0 < len(d["currency"]) <= 4:
+            p.append(f"{label}: currency must be a short code such as GBP or USD")
+    return p
+
+
+def validate(kind, data, settings=None, existing=None, candidates=None, demo=False, folder=None):
+    if kind == "runlog":
+        return check_runlog(data, folder)
+    if kind == "packpatch":
+        return check_packpatch(data, existing, settings)
     if kind == "docs":
         return check_docs(data, existing)
     if kind == "replies":
@@ -895,7 +1101,7 @@ def check_demoboard(url, folder, root=None):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Check the AI's output before it is written (backlog H3).")
-    ap.add_argument("kind", choices=["scores", "carryover", "card", "pack", "urls", "jobspec", "claims", "sentences", "hashes", "replies", "moves", "docs", "disclosure", "demoboard"])
+    ap.add_argument("kind", choices=["scores", "carryover", "card", "pack", "urls", "jobspec", "claims", "sentences", "hashes", "replies", "moves", "docs", "disclosure", "demoboard", "runlog", "packpatch"])
     ap.add_argument("file")
     ap.add_argument("names", nargs="*", help="hashes: the pack files to hash")
     ap.add_argument("--cv", help="claims: the CV as built (.md)")
@@ -908,7 +1114,7 @@ def main(argv=None):
     ap.add_argument("--existing", help="the board's applications, as [{id, data}], to catch duplicate cards; for docs, the ids already on the board")
     ap.add_argument("--bank", help="disclosure: the approved form-answer bank (_context/job-scout/form-answers.md)")
     ap.add_argument("--candidates", help="the run's candidates.json, to check the ids in advert-urls.json")
-    ap.add_argument("--folder", help="demoboard: the demo run's folder (data\\demo\\<date>); required")
+    ap.add_argument("--folder", help="demoboard: the demo run's folder (data\\demo\\<date>); required. runlog: the run folder, whose date the document must carry")
     ap.add_argument("--demo", action="store_true", help="card: a demo card, whose pack may be under Job Scout\\data\\demo (BUG-7)")
     ap.add_argument("--root", help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
@@ -978,7 +1184,7 @@ def main(argv=None):
         if a.before:
             problems += check_unchanged(load(a.before), a.pack or os.path.dirname(a.cv))
     else:
-        problems = validate(a.kind, data, settings, existing, candidates, demo=a.demo)
+        problems = validate(a.kind, data, settings, existing, candidates, demo=a.demo, folder=a.folder)
     if problems:
         for line in problems:
             try:

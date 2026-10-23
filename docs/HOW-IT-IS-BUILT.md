@@ -64,7 +64,7 @@ The figures below come from the test reports, 17 to 21 October 2026.
   - a warning on a reply ("asks for bank details") did not appear on the board;
   - in a calendar invitation, the time-zone information was read as the meeting time.
 - **Scoring test.** This _evaluation_ compares the system's scores for 34 roles with my own decision on each: apply or not. The first run taught me more about the test than about the scoring. For most roles, the full advert had not been saved, so the system scored them again from the short alert only. The original scores agreed with my decisions for 24 of 34 roles (71%). The new scores agreed for only 11 of 34. I am now rebuilding the test from runs that save every advert. Only then will I set a _baseline_.
-- **Automated tests.** There are <!-- fact:code-tests -->151<!-- /fact --> tests for the code and <!-- fact:tool-tests -->164<!-- /fact --> for the checking tools. They use made-up emails and adverts, and several of them are hostile.
+- **Automated tests.** There are <!-- fact:code-tests -->166<!-- /fact --> tests for the code and <!-- fact:tool-tests -->206<!-- /fact --> for the checking tools. They use made-up emails and adverts, and several of them are hostile.
 
 A one-page risk register lists each risk, its control, its owner and the date it was last checked. It follows the four functions of the NIST AI Risk Management Framework (from NIST, the US standards agency): Govern, Map, Measure and Manage. I review it at the end of every sprint.
 

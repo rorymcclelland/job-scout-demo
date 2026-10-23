@@ -333,6 +333,11 @@ def keep_list(board, today):
 UK = "Europe/London"
 
 
+MEETING = re.compile(r"\b(interview|call|chat|meeting|meet|talk|conversation|video|zoom|teams|screen(ing)?|appointment|session)\b", re.I)
+CONFIRMED = re.compile(r"\b(confirmed|booked|scheduled|see you)\b", re.I)
+QUOTED_LEAD = re.compile(r"^\s*on\s|\bwrote:?\s*$", re.I)
+
+
 def board_docs(matched, today, existing_ids=None):
     """The documents part 2 creates for the board's Inbox and Calendar tabs. Create-only:
     an id already on the board is skipped, so the owner's ticks and choices are never overwritten."""
@@ -367,11 +372,21 @@ def board_docs(matched, today, existing_ids=None):
         if cal and cal.get("start"):
             add("events", rid + "-c", {**base, "kind": "confirmed", "start": cal["start"], "end": cal.get("end"), "zone": cal.get("zone") or UK,
                                        "zoneAssumed": not cal.get("zone"), "title": f"{typ.capitalize()} · {who}", "asWritten": "", "group": rid, "source": "scout", "created": today})
-        elif typ == "invitation":
-            slots = [d for d in it.get("dates") or [] if d.get("date") and d.get("time")]
+        elif typ not in ("rejection", "other"):
+            # BUG-5 (Sprint 10): any reply, not only an invitation, can carry an appointment written in its text.
+            # Invitations keep every timed slot; other replies only entries that name a meeting. A quoted
+            # message header ("On Tue, 20 Oct 2026 at 18:30 ... wrote") is never an appointment.
+            # From the Sprint 10 check: an appointment is after the email; anything dated before it, or
+            # written like a quoted header ("On ...", "... wrote:"), is history, not a slot.
+            sent = str(it.get("emailDate") or "")[:10]
+            slots = [d for d in it.get("dates") or [] if d.get("date") and d.get("time") and not QUOTED_LEAD.search(d.get("asWritten") or "")
+                     and not (sent and str(d["date"]) < sent)
+                     and (typ == "invitation" or MEETING.search(f"{d.get('what') or ''} {d.get('asWritten') or ''}"))]
             for n, d in enumerate(slots[:6], 1):
-                add("events", f"{rid}-{n}", {**base, "kind": "proposed", "start": f"{d['date']}T{d['time']}:00", "end": None,
-                                            "zone": d.get("zone") or UK, "zoneAssumed": not d.get("zone"), "title": f"Proposed · {who}",
+                confirmed = bool(CONFIRMED.search(f"{d.get('what') or ''} {d.get('asWritten') or ''}"))
+                add("events", f"{rid}-{n}", {**base, "kind": "confirmed" if confirmed else "proposed", "start": f"{d['date']}T{d['time']}:00", "end": None,
+                                            "zone": d.get("zone") or UK, "zoneAssumed": not d.get("zone"),
+                                            "title": f"{'Booked' if confirmed else 'Proposed'} · {who}", "fromText": True,
                                             "asWritten": (d.get("asWritten") or "")[:120], "group": rid, "source": "scout", "created": today})
     return {"date": today, "writes": writes}
 

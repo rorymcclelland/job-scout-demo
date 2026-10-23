@@ -42,7 +42,7 @@ Show the board:
 
 - **Shortlisted roles** as Draft cards, each with a score, the main strength and the main gap.
 - **Worth a look:** roles just under the line (55 to 59) are listed in the digest, so a near miss is not lost.
-- **Replies:** the invitation is now a calendar event and a to-do; the rejection moved its card to Rejected, with a log entry and an Undo button.
+- **Replies:** the invitation is now a calendar event and a to-do; the rejection is a suggestion to move its card to Rejected, with Confirm and Dismiss: until the reply reader has passed my grading, nothing moves by itself.
 
 Open the pack folder: the CV and letter, and the reviewer's notes. Point to the lines the reviewer left for the user to sign off.
 
@@ -52,7 +52,7 @@ Open the pack folder: the CV and letter, and the reviewer's notes. Point to the 
 
 > "Every change is tested before it runs on real data."
 
-- <!-- fact:code-tests -->151<!-- /fact --> automatic code tests and <!-- fact:tool-tests -->164<!-- /fact --> tool tests.
+- <!-- fact:code-tests -->166<!-- /fact --> automatic code tests and <!-- fact:tool-tests -->206<!-- /fact --> tool tests.
 - A red-team test set of hostile adverts and emails, run after each change to the reader.
 - An evaluation that compares the AI's scores with the user's own judgement.
 

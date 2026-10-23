@@ -236,6 +236,34 @@ class Docs(unittest.TestCase):
         forced = {"writes": [{"collection": "todos", "doc_id": "r-0000000000b1", "data": {"replyId": "r-0000000000b1", "ask": "x", "done": False, "source": "scout"}}]}
         self.assertTrue(any("never overwritten" in x for x in validate.check_docs(forced, {"todos": ["r-0000000000b1"]})))
 
+    def test_bug5_an_appointment_in_the_text_becomes_an_event_whatever_the_type(self):
+        cook = reply("r-0000000000c1", "invitation", company="Kestrel Foods")
+        cook["read"]["dates"] = [{"what": "to talk with Aiko", "asWritten": "8:00 a.m. UK time on Friday (4:00 p.m. JST)", "date": "2026-10-23", "time": "08:00", "zone": "Europe/London"}]
+        conf = reply("r-0000000000c2", "follow-up", company="Lumen Labs")
+        conf["read"]["dates"] = [{"what": "interview confirmed", "asWritten": "Tue, Oct 27, 2026 2:30 PM Europe/Dublin", "date": "2026-10-27", "time": "14:30", "zone": "Europe/Dublin"}]
+        quoted = reply("r-0000000000c3", "follow-up", company="Ledgerly")
+        quoted["read"]["dates"] = [{"what": "Original request for confirmation", "asWritten": "On Tue, Oct 20, 2026 at 18:30", "date": "2026-10-20", "time": "18:30", "zone": None}]
+        out = replies.board_docs(run_match(cook, conf, quoted), "2026-10-22")
+        ev = {w["doc_id"]: w["data"] for w in out["writes"] if w["collection"] == "events"}
+        self.assertEqual(ev["r-0000000000c1-1"]["kind"], "proposed")
+        self.assertEqual(ev["r-0000000000c1-1"]["start"], "2026-10-23T08:00:00")
+        self.assertTrue(ev["r-0000000000c1-1"]["fromText"])
+        self.assertEqual(ev["r-0000000000c2-1"]["kind"], "confirmed", "a follow-up saying it is confirmed is a confirmed event")
+        self.assertNotIn("r-0000000000c3-1", ev, "a quoted message header is not an appointment")
+        for n, header in enumerate(("On Tue, 20 Oct 2026 at 18:30, Sam wrote:", "Tue, 20 Oct 2026 at 18:30", "On 20 Oct 2026, at 18:30"), 5):
+            q = reply(f"r-00000000000{n}", "invitation", company="Ledgerly")
+            q["read"]["dates"] = [{"what": "interview", "asWritten": header, "date": "2026-10-20", "time": "18:30", "zone": None}]
+            q["date"] = "2026-10-21T18:25:28Z"
+            got = replies.board_docs(run_match(q), "2026-10-22")
+            self.assertFalse([w for w in got["writes"] if w["collection"] == "events"], header)
+        self.assertEqual(validate.check_docs(out), [])
+
+    def test_bug5_a_date_with_no_time_makes_no_timed_event(self):
+        r = reply("r-0000000000c4", "invitation", company="Wayne")
+        r["read"]["dates"] = [{"what": "interview", "asWritten": "27 October", "date": "2026-10-27", "time": None, "zone": None}]
+        out = replies.board_docs(run_match(r), "2026-10-22")
+        self.assertFalse([w for w in out["writes"] if w["collection"] == "events"])
+
     def test_4_an_unmatched_reply_shows_by_the_company_it_names_or_its_domain(self):
         out = replies.board_docs(self.matched(), "2026-10-18")
         doc = next(w["data"] for w in out["writes"] if w["doc_id"] == "r-0000000000b4" and w["collection"] == "replies")

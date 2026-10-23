@@ -38,11 +38,13 @@ export interface ReplyRecord extends Omit<FoundReply, "file" | "day"> {
 
 export interface RepliesSummary {
   date: string;
-  status: "done" | "paused" | "disabled" | "none found";
+  status: "done" | "paused" | "disabled" | "none found" | "stopped";
   model: string;
   firstLook: boolean;
   grade: { passed: boolean; date: string | null; right: number | null; of: number | null } ;
   counts: Record<string, number>;
+  /** G11 (Sprint 10): the local model's tokens read and written, as Ollama reports them. */
+  tokens?: { in: number; out: number };
   replies: ReplyRecord[];
   warnings: string[];
   ledgerId: string | null;
@@ -70,6 +72,7 @@ export async function readReplies(settings: Settings, opts: ReplyOptions = {}): 
   if (!r.enabled) warnings.push("The local reader is switched off in Settings, so replies are listed but not read.");
 
   const records: ReplyRecord[] = [];
+  const tokens = { in: 0, out: 0 };
   for (const f of found.replies.slice(0, 50)) {
     const { file, day, ...rest } = f;
     const rec: ReplyRecord = { ...rest, status: "missing", reason: null, model: null, read: null, calendar: null, links: false, warnings: [], untrusted: [], seconds: null };
@@ -89,6 +92,7 @@ export async function readReplies(settings: Settings, opts: ReplyOptions = {}): 
     const x = await chat<ModelReply>(settings.ollamaHost, r.model, REPLY_SYSTEM, `<<<EMAIL\n${clean.text}\nEMAIL>>>`, REPLY_SCHEMA, opts.fetchFn);
     rec.model = r.model;
     rec.seconds = x.seconds;
+    tokens.in += x.tokensIn ?? 0; tokens.out += x.tokensOut ?? 0;
     if (!x.value || typeof x.value.type !== "string") { rec.status = "failed"; rec.reason = x.error ?? "the model's answer did not have the expected shape"; continue; }
     const g = groundReply(x.value, clean.text, email.date);
     if (x.value.suspectedInjection) {
@@ -112,7 +116,7 @@ export async function readReplies(settings: Settings, opts: ReplyOptions = {}): 
     instructions: {}, settingsVersion: settings.constraints.settingsVersion ?? null,
     inputs: { listed: records.length, firstLook: !!found.firstLook, gradePassed: grade.passed }, counts,
   });
-  return write(folder, { date: today, status: "done", model: r.model, firstLook: !!found.firstLook, grade, counts, replies: records, warnings, ledgerId });
+  return write(folder, { date: today, status: "done", model: r.model, firstLook: !!found.firstLook, grade, counts, tokens, replies: records, warnings, ledgerId });
 }
 
 /** The grading result (Q6): moves are only made once the model has passed, and only on replies graded after that. */

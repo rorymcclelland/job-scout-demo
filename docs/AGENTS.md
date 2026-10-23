@@ -1,6 +1,6 @@
 # Job Scout: agent catalogue
 
-_Version 0.14 · 21 October 2026 · one entry per AI component · reviewed at every sprint close_
+_Version 0.16 · 23 October 2026 · one entry per AI component · reviewed at every sprint close_
 
 This catalogue lists every place where an AI model makes a judgement. Everything else in Job Scout is ordinary code. A step became an agent only for isolation, independence or on-demand use (decision D20 in [DECISIONS](DECISIONS.md)). Terms are explained in the [glossary](GLOSSARY.md).
 
@@ -14,7 +14,7 @@ Every agent run adds an entry to the ledger (`data\ledger\<date>.json`) with the
 | Reply reader | reply-reader | qwen2.5:14b (local) | After the advert reader, PC | `src\reader\reply.ts` | Grounding in code; `validate.py replies` |
 | Finder (part 1) | orchestrator | Claude | 07:23 daily, cloud | `SCOUT.md`, steps 0 to 5 | `validate.py urls` |
 | Scorer (part 2) | orchestrator | Claude | 08:10 daily, cloud | `SCOUT.md`, `rubric.md` | `validate.py scores`, `carryover`, `card`, `moves`, `docs` |
-| Writer | writer | Claude | Within part 2, per shortlisted role | `PACK.md` | `build_pack.py`; `validate.py pack`, `disclosure` |
+| Writer | writer | Claude | Within part 2, per shortlisted role and per rebuild (E15) | `PACK.md` | `build_pack.py`; `validate.py pack`, `disclosure` |
 | Reviewer | reviewer | Claude, separate agent | Within part 2, one per pack | `REVIEW.md`; `.claude\agents\reviewer.md` | `validate.py claims` |
 | Weekly summary | weekly | Claude | 08:50 Mondays, cloud | `WEEKLY.md` | `weekly.py` (code builds the figures) |
 
@@ -58,7 +58,7 @@ The procedures (`SCOUT.md`, `PACK.md`, `REVIEW.md`, `WEEKLY.md`, `EVAL.md`, `RED
 
 - **Purpose.** Score each role against eight weighted criteria, pick the best five (plus up to two at chosen target employers), write the digest and Draft cards, and match replies to applications.
 - **Inputs.** Settings; job facts from the reader (or the advert read in the cloud when the PC could not); `rubric.md`; `candidate-profile.md`; reply summaries.
-- **Outputs.** `scores.json`, `digest.md`, `carryover.json`, Draft cards, reply patches and Inbox entries on the board, `keep.json`, tomorrow's watch list.
+- **Outputs.** `scores.json`, `digest.md`, `carryover.json`, Draft cards, reply patches and Inbox entries on the board, `keep.json`, tomorrow's watch list; from 0.15.0 the staleness and rebuild patches on Draft cards (`validate.py packpatch`) and the day's run log (`runs`, `validate.py runlog`).
 - **Tools and permissions.** The file bridge; the board's database (its own Draft cards and the reply patches only); never the settings document.
 - **Guardrails.** Every output passes `validate.py` before it is written. Reply moves are decided by `tools\replies.py` (fixed rules in code), not by the agent.
 - **Evaluation.** `EVAL.md`: agreement with the user's own apply or pass labels. **No baseline yet** (H18): the first set was mostly scored from alerts.
@@ -68,7 +68,7 @@ The procedures (`SCOUT.md`, `PACK.md`, `REVIEW.md`, `WEEKLY.md`, `EVAL.md`, `RED
 
 - **Purpose.** Draft the CV Summary, three highlights and a covering letter in the user's voice for each shortlisted role, plus a fit-and-gap note and form answers.
 - **Inputs.** The job facts, the user's career record and positioning rules, their previous CV and letter.
-- **Outputs.** A pack folder: CV and letter (PDF and Markdown), `fit-and-gap.md`, `form-answers.md`, `ats.json`, `pack.json` (written last).
+- **Outputs.** A pack folder: CV and letter (PDF and Markdown), `fit-and-gap.md`, `form-answers.md`, `ats.json`, `pack.json` (written last, with `builtFrom`, what it was built from: E16, including the advert's facts, from the PC's spec or, for an advert read in the cloud, `staleness.py facts`: E17). A rebuild (E15) writes a new folder beside the old one and never touches the old.
 - **Guardrails.** `build_pack.py` edits copies of the user's own documents and fails the build if the CV is not two pages, the letter runs past one page, or a barred claim or em dash appears. The approved answer on AI use must appear word for word (`validate.py disclosure`).
 - **Owner.** Cloud agent; the user signs off every pack.
 

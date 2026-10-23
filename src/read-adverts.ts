@@ -29,6 +29,7 @@ import { available, extract, modelDigest, ollamaVersion, unload } from "./reader
 import { checkDigest } from "./reader/pin.ts";
 import { localDate } from "./scout.ts";
 import { readReplies } from "./read-replies.ts";
+import { markStopped } from "./reader/stopped.ts";
 
 export interface SpecRecord {
   id: string;
@@ -47,7 +48,7 @@ export interface SpecRecord {
 
 export interface ReaderSummary {
   date: string;
-  status: "done" | "paused" | "disabled" | "no list";
+  status: "done" | "paused" | "disabled" | "no list" | "stopped";
   model: string;
   /** H8: the model's digest, so a change made by Ollama is seen. */
   modelDigest?: string | null;
@@ -59,6 +60,8 @@ export interface ReaderSummary {
   counts: { listed: number; ok: number; unreliable: number; notReadable: number; closed: number; failed: number };
   medianSeconds: number | null;
   medianTokensPerSecond: number | null;
+  /** G11 (Sprint 10): the local model's tokens read and written across the run, as Ollama reports them. */
+  tokens?: { in: number; out: number };
   warnings: string[];
   ledgerId: string | null;
 }
@@ -109,6 +112,7 @@ export async function readAdverts(settings: Settings, opts: ReadOptions = {}): P
   fs.mkdirSync(path.join(folder, "adverts"), { recursive: true });
   const records: SpecRecord[] = [];
   const speeds: number[] = [];
+  const tokens = { in: 0, out: 0 };
   let slow: number | null = null; // G9: set once the model is seen running on the processor
   for (const { id, url } of list) {
     const rec: SpecRecord = { id, url, status: "not-readable", reason: null, via: null, model: null, chars: 0, linesRemoved: 0, seconds: null, spec: null, grounding: null, readAt: new Date().toISOString() };
@@ -133,6 +137,7 @@ export async function readAdverts(settings: Settings, opts: ReadOptions = {}): P
     rec.model = r.model;
     rec.seconds = x.seconds;
     if (x.tokensPerSecond) speeds.push(x.tokensPerSecond);
+    tokens.in += x.tokensIn ?? 0; tokens.out += x.tokensOut ?? 0;
     if (x.tokensPerSecond !== null && x.tokensPerSecond < SLOW_TPS) slow = x.tokensPerSecond;
     if (!x.spec || !wellFormed(x.spec)) { rec.status = "failed"; rec.reason = x.error ?? "the model's answer did not have the expected shape"; continue; }
     const { spec, grounding } = ground(x.spec, clean.text);
@@ -158,7 +163,7 @@ export async function readAdverts(settings: Settings, opts: ReadOptions = {}): P
     instructions: {}, settingsVersion: settings.constraints.settingsVersion ?? null,
     inputs: { listed: records.length, useForScoring: r.useForScoring }, counts,
   });
-  return writeSummary(folder, { date: today, status: "done", model: r.model, modelDigest: digest, ollamaVersion: runtime, skippedSlow, useForScoring: r.useForScoring, counts, medianSeconds: median(records.filter((x) => x.seconds !== null).map((x) => x.seconds!)), medianTokensPerSecond: tps, warnings, ledgerId });
+  return writeSummary(folder, { date: today, status: "done", model: r.model, modelDigest: digest, ollamaVersion: runtime, skippedSlow, useForScoring: r.useForScoring, counts, medianSeconds: median(records.filter((x) => x.seconds !== null).map((x) => x.seconds!)), medianTokensPerSecond: tps, tokens, warnings, ledgerId });
 }
 
 function wellFormed(s: Spec): boolean {
@@ -175,6 +180,23 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   const args = process.argv.slice(2);
   const at = args.indexOf("--date");
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  // BUG-9 (Sprint 11): a stop (Ctrl+C) is written down, so nothing is lost or guessed at.
+  const onStop = () => {
+    try {
+      const s = loadSettings(root);
+      const day = at >= 0 ? args[at + 1] : localDate(new Date());
+      markStopped(s.dataDir, day, s.reader.model);
+      console.log(`Job Scout reader, ${day}: stopped at ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Unread replies are carried forward to tomorrow's run.`);
+    } catch (e) { console.error(`Job Scout reader: could not record the stop (${(e as Error).message})`); }
+    // Let Ollama free the graphics memory now rather than at its own timeout (best effort, two seconds at most).
+    let s2: Settings | null = null;
+    try { s2 = loadSettings(root); } catch { /* exit anyway */ }
+    const done = () => process.exit(130);
+    if (s2) { setTimeout(done, 2000).unref(); unload(s2.ollamaHost, s2.reader.model).then(done, done); } else done();
+  };
+  // SIGHUP: the console window was closed. Ending the task from Task Scheduler cannot be caught;
+  // its replies are carried forward all the same, without the "stopped at" note.
+  for (const sig of ["SIGINT", "SIGTERM", "SIGBREAK", "SIGHUP"] as const) process.on(sig, onStop);
   readAdverts(loadSettings(root), { today: at >= 0 ? args[at + 1] : undefined, waitMs: args.includes("--no-wait") ? 0 : undefined })
     .then((s) => {
       console.log(`Job Scout reader, ${s.date}: ${s.status}. ${s.counts.ok} read, ${s.counts.unreliable} unreliable, ${s.counts.notReadable} not readable, ${s.counts.closed} closed, ${s.counts.failed} failed, of ${s.counts.listed}. Model ${s.model}${s.medianSeconds !== null ? `, about ${Math.round(s.medianSeconds)} s an advert` : ""}.`);

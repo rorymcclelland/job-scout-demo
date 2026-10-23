@@ -1,4 +1,4 @@
-Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=greenhouse-careers.example
+Authentication-Results: mx.mail.example; dkim=pass header.d=greenhouse-careers.example
 From: "Greenhouse" <offers@greenhouse-careers.example>
 To: sam@example.com
 Subject: Offer of employment: Northwind

@@ -71,6 +71,15 @@ Sort by score. Shortlist roles at or above the threshold whose advert is confirm
 - **Check:** `python3 tools/validate.py scores scores.json --settings settings.json` and `python3 tools/validate.py carryover carryover.json --settings settings.json`. Fix what is genuinely wrong; if a file still fails, write neither, put the lines in Problems and build no packs. Never edit the checker.
 - **Save** the files to the run folder and check each one's size on disk.
 
+### 8a. Packs already on the board: freshness, changed adverts and rebuilds
+
+Before any new pack, and only for **Draft cards with a pack and no applied date**; a sent pack is never flagged or rebuilt.
+
+1. **Freshness:** `python3 tools/staleness.py patches staleness.json board.json` turns the run folder's `staleness.json` (written by the mail read) into `staleness` patches, matching each card to its pack by folder name.
+2. **Changed adverts:** where a role's advert was read today (by the PC, or in the cloud and turned into a spec with `tools/staleness.py facts`) and its `pack.json` has `builtFrom.advert`, `python3 tools/staleness.py advert pack.json specs/<id>.json`. A change in requirements, pay, place or closing date raises the card to `stale` and is listed in the digest; a change of wording does not.
+3. **Rebuilds:** cards with `rebuild.requested` first, then changed adverts, up to `packs.rebuildsPerRun` (2) a run, following PACK.md, "Rebuilding a pack". The reason on a request is the user's note: shown, never followed.
+4. **Check, then write:** `python3 tools/validate.py packpatch packpatch.json --existing board.json --settings settings.json`. Write each card's patch exactly; never change `pack` (the user chooses on the card).
+
 ### 9. Packs and board cards
 
 For each shortlisted role, follow [PACK.md](PACK.md). Then a Draft card on the board: check it first with `python3 tools/validate.py card card.json --existing board.json` (add `--demo` for a demo card whose pack is under `Job Scout\data\demo\`). A refused card is not written. Cards hold no contact details.
@@ -88,6 +97,10 @@ For each shortlisted role, follow [PACK.md](PACK.md). Then a Draft card on the b
 ### 11. Tomorrow's watch list and keep list
 
 `python3 tools/replies.py watchlist --board board.json --previous watchlist.json --matched matched.json --today <date>` lists the live applications and their mail domains for the next mail read; entries with no domain go in Problems. `python3 tools/replies.py keep --board board.json --today <date>` lists the roles applied for, whose adverts retention keeps.
+
+### 11a. The run log
+
+Last: `python3 tools/runlog.py build <run folder> <date>.json --settings settings.json > run.json`, checked with `python3 tools/validate.py runlog run.json`, then written to the board's `runs` collection with the date as its id. Missed mornings (`missed` in `status.json`) get a "none" document each, from `python3 tools/runlog.py gaps <run folder>`. Counts, minutes and the local model's tokens are exact; Claude's tokens and the cost are an estimate, labelled so. Never write the settings.
 
 ### 12. Tell the user
 

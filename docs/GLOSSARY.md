@@ -1,6 +1,6 @@
 # Job Scout: glossary
 
-_Version 0.14 · 21 October 2026 · shared by every document in this set_
+_Version 0.16 · 23 October 2026 · shared by every document in this set_
 
 | Term | Meaning |
 | --- | --- |

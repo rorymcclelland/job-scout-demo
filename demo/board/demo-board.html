@@ -595,6 +595,45 @@ button.key[aria-pressed="false"] .swatch { opacity: 0.3; }
 .ev-move { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 .card.flash { outline: 2px solid var(--accent); outline-offset: 2px; }
 .empty-note { color: var(--ink-faint); font-style: italic; font-size: 13px; }
+
+/* Sprint 10 (G11): the Runs tab. Read-only. */
+.runs-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.runs-head h2 { font-size: 15px; margin: 0 auto 0 0; }
+.runs-tiles { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 12px; }
+.runs-tiles .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; min-width: 150px; }
+.runs-tiles .tile.lead { border-color: var(--accent); }
+.runs-tiles .tile .v { display: block; font-family: var(--font-display); font-size: 22px; font-variant-numeric: tabular-nums; }
+.runs-tiles .tile .k { font-size: 12px; color: var(--ink-soft); }
+.runs-tiles .tile .d { display: block; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.runs-chart { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 12px; }
+.runs-chart svg { display: block; width: 100%; height: auto; }
+.runs-chart .ax { stroke: var(--grid); stroke-width: 1; }
+.runs-chart .lbl { fill: var(--ink-faint); font-size: 11px; font-family: var(--font-body); }
+.runs-chart .lead-line { fill: none; stroke: var(--accent); stroke-width: 2; }
+.runs-chart .cost-line { fill: none; stroke: var(--ink-faint); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.runs-chart .pt { fill: var(--accent); }
+.runs-chart .pt.bf { fill: var(--surface); stroke: var(--accent); stroke-width: 1.5; }
+.runs-chart .none { stroke: var(--ink-faint); stroke-width: 1.5; }
+.runs-chart .brk { stroke: var(--avg); stroke-width: 1; stroke-dasharray: 3 3; }
+.runs-chart .brk-l { fill: var(--avg); font-size: 11px; font-family: var(--font-body); }
+.runs-key { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--ink-soft); margin: 4px 4px 0; }
+.runs-key i { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--accent); vertical-align: middle; margin-right: 5px; }
+.runs-key i.c { border-top: 1.5px dashed var(--ink-faint); }
+.runs-key i.b { width: 0; height: 12px; border-top: 0; border-left: 1px dashed var(--avg); }
+.runs-wrap { overflow-x: auto; }
+.runs-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.runs-table th, .runs-table td { padding: 5px 8px; border-bottom: 1px solid var(--line-soft); text-align: right; white-space: nowrap; }
+.runs-table th { color: var(--ink-soft); font-weight: 500; font-size: 12px; }
+.runs-table th:first-child, .runs-table td:first-child, .runs-table td.st { text-align: left; }
+.runs-table td.est { color: var(--ink-soft); }
+.runs-table td.st small { color: var(--ink-faint); }
+/* E16: how fresh a pack is; E15: a rebuilt pack waiting for the user's choice. */
+.stale-badge.fresh { background: var(--accent-soft); color: var(--accent); }
+.stale-badge.probably { background: transparent; color: var(--avg); border: 1px solid var(--avg); }
+.stale-badge.stale { background: transparent; color: var(--target); border: 1px solid var(--target); }
+.stale-badge.sent { background: transparent; color: var(--ink-faint); border: 1px solid var(--line); }
+.rebuild-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.rebuild-form input { flex: 1 1 180px; min-width: 0; }
 @media (max-width: 620px) {
   .inbox-grid { grid-template-columns: minmax(0, 1fr); }
   .inbox-grid .todos { order: -1; }
@@ -883,9 +922,11 @@ dialog.settings::backdrop { background: rgba(10, 16, 15, 0.45); }
     <button type="button" data-view="board" aria-pressed="true">Board</button>
     <button type="button" data-view="inbox" aria-pressed="false">Inbox<span class="new" id="inboxNew"></span></button>
     <button type="button" data-view="calendar" aria-pressed="false">Calendar</button>
+    <button type="button" data-view="runs" aria-pressed="false">Runs</button>
   </nav>
   <section class="view" id="inboxView" hidden aria-label="Inbox"></section>
   <section class="view" id="calView" hidden aria-label="Calendar"></section>
+  <section class="view" id="runsView" hidden aria-label="Runs"></section>
 
   <section class="panel" id="chartPanel">
     <button class="panel-head" id="chartToggle" type="button" aria-expanded="true" aria-controls="chartBody">
@@ -1759,6 +1800,7 @@ function renderCard(it, col) {
       meta.appendChild(src);
     }
   }
+  { const sb = staleBadge(it); if (sb) meta.appendChild(sb); }
   if (isSnoozed(it)) {
     const z = document.createElement("span");
     z.className = "snoozed-note";
@@ -1849,7 +1891,18 @@ function renderCard(it, col) {
     copy.addEventListener("click", () => copyPath(fullPackPath(it.pack), copy));
     // BUG-7: a demo pack lives in Job Scout\data\demo, outside the folders the Open folder link knows.
     if (/^Professional development[\\/]/i.test(it.pack)) pk.append(lab, open, copy); else pk.append(lab, copy);
+    /* E15: ask the next morning run to rebuild this pack from the latest
+       advert, CV and notes. Draft cards only; a sent pack is never rebuilt. */
+    if (canWrite && packIsDraft(it)) {
+      if (it.rebuild && it.rebuild.requested) {
+        const rq = el("span", "notes", "Rebuild requested " + fmtDate(it.rebuild.requested) + (it.rebuild.reason ? ": " + it.rebuild.reason : ""));
+        pk.append(rq, btn("Cancel", () => save(it.id, { rebuild: null, log: withEntry(it, { text: "Cancelled the rebuild request" }) }, "Rebuild request cancelled")));
+      } else {
+        pk.appendChild(btn("Rebuild pack", () => rebuildForm(pk, it), "Ask the next morning run for a new pack from the latest advert, CV and notes. The old pack stays until you choose."));
+      }
+    }
     card.appendChild(pk);
+    if (it.rebuilt && it.rebuilt.folder) card.appendChild(rebuiltBox(it));
   }
 
   if (it.notes) {
@@ -2380,7 +2433,7 @@ async function connect() {
   );
 
   // Sprint 6b: the Inbox and Calendar collections, written by the morning run (create-only) and by the user here.
-  for (const name of ["replies", "todos", "events"]) {
+  for (const name of ["replies", "todos", "events", "runs"]) {
     db.collection(name).onSnapshot(
       snap => { extra[name] = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); renderViews(); },
       () => { /* the board works without them */ }
@@ -2411,9 +2464,9 @@ async function connect() {
    The morning run creates replies/, todos/ and events/ documents (never edits
    them); the user ticks, links, chooses, adds and moves them here. Nothing here
    replies to anyone, accepts anything or leaves the board. */
-const extra = { replies: [], todos: [], events: [] };
+const extra = { replies: [], todos: [], events: [], runs: [] };
 let view = readStore("pipeline.view", "board");
-if (["board", "inbox", "calendar"].indexOf(view) === -1) view = "board";
+if (["board", "inbox", "calendar", "runs"].indexOf(view) === -1) view = "board";
 let calMode = readStore("pipeline.calMode", "week");
 let calAnchor = new Date();
 const LOCAL_ZONE = (Intl.DateTimeFormat().resolvedOptions().timeZone) || "Europe/London";
@@ -2431,6 +2484,7 @@ function setView(v) {
   if (!onBoard) document.getElementById("adder").hidden = true;
   document.getElementById("inboxView").hidden = v !== "inbox";
   document.getElementById("calView").hidden = v !== "calendar";
+  document.getElementById("runsView").hidden = v !== "runs";
   if (v === "inbox") markSeen();
   renderViews();
 }
@@ -2440,6 +2494,7 @@ function renderViews() {
   document.getElementById("inboxNew").textContent = fresh ? " · " + fresh + " new" : "";
   if (view === "inbox") renderInbox();
   if (view === "calendar") renderCalendar();
+  if (view === "runs") renderRuns();
 }
 
 async function markSeen() {
@@ -2651,6 +2706,7 @@ function evBox(e) {
   b.appendChild(document.createTextNode(e.chosen ? String(e.title || "").replace(/^Proposed/, "Chosen") : (e.title || "Event")));
   if (e.at && e.zone && e.zone !== LOCAL_ZONE) b.appendChild(el("div", "orig", hhmm(e.at, e.zone) + " " + place(e.zone) + (e.zoneAssumed ? " (zone assumed)" : "")));
   else if (e.zoneAssumed) b.appendChild(el("div", "orig", "zone assumed"));
+  if (e.fromText) b.appendChild(el("div", "orig", "read from the email's text: check it"));
   if (e.kind === "proposed" && !e.chosen) b.appendChild(el("div", "orig", "proposed slot"));
   if (canWrite) {
     const acts = el("div", "acts");
@@ -2757,8 +2813,227 @@ function renderCalendar() {
   if (canWrite) root.appendChild(calAdder());
 }
 
+
+/* ───────────── Sprint 10 (G11): the Runs tab ─────────────
+   One document per morning run, written by part 2 after the digest
+   (tools/runlog.py, checked by validate.py runlog). The board only reads it.
+   Claude's tokens and the cost are estimates; the trend is the point. */
+const CURRENCY_SIGN = { USD: "$", GBP: "£", EUR: "€", JPY: "¥" };
+const money = (n, cur) => n == null || typeof n !== "number" ? "none" : (CURRENCY_SIGN[cur] || (cur ? cur + " " : "")) + n.toFixed(2);
+const compact = n => typeof n !== "number" ? "" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n);
+const num = n => typeof n === "number" && isFinite(n) ? n : null;
+
+function runsSorted() {
+  return extra.runs.filter(r => r && /^\d{4}-\d{2}-\d{2}$/.test(r.date || r.id || ""))
+    .map(r => Object.assign({}, r, { date: r.date || r.id }))
+    .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0)
+    .slice(-30);
+}
+
+function svgEl(tag, attrs, text) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  Object.keys(attrs || {}).forEach(k => e.setAttribute(k, attrs[k]));
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function runsChart(runs, width) {
+  const box = el("div", "runs-chart");
+  if (!runs.length) { box.appendChild(el("p", "empty-note", "No runs to chart yet.")); return box; }
+  // Drawn at the width it is shown, so the labels stay at their real size.
+  const W = Math.max(300, Math.round((width || 640) - 18)), H = 200, L = 46, R = 12, T = 14, B = 26;
+  const cur = runs[runs.length - 1].currency || "USD";
+  const vals = [];
+  runs.forEach(r => { if (num(r.perShortlisted) != null) vals.push(r.perShortlisted); if (num(r.cost) != null) vals.push(r.cost); });
+  const top = Math.max(1, ...vals) * 1.15;
+  const x = i => runs.length === 1 ? L + (W - L - R) / 2 : L + i * (W - L - R) / (runs.length - 1);
+  const y = v => T + (H - T - B) * (1 - v / top);
+  const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "img",
+    "aria-label": "Cost per shortlisted role and cost per run, for the last " + runs.length + " runs" });
+  for (let k = 0; k <= 3; k++) {
+    const v = top * k / 3;
+    svg.appendChild(svgEl("line", { class: "ax", x1: L, x2: W - R, y1: y(v), y2: y(v) }));
+    svg.appendChild(svgEl("text", { class: "lbl", x: L - 6, y: y(v) + 4, "text-anchor": "end" }, money(v, cur)));
+  }
+  const step = Math.max(1, Math.ceil(runs.length / 8));
+  runs.forEach((r, i) => {
+    if (i % step === 0 || i === runs.length - 1)
+      svg.appendChild(svgEl("text", { class: "lbl", x: x(i), y: H - 8, "text-anchor": runs.length > 1 && i === 0 ? "start" : runs.length > 1 && i === runs.length - 1 ? "end" : "middle" }, shortDay(r.date + "T12:00:00")));
+  });
+  // A change of estimating method breaks the trend: mark it.
+  runs.forEach((r, i) => {
+    if (i > 0 && r.method !== runs[i - 1].method) {
+      const bx = (x(i) + x(i - 1)) / 2;
+      svg.appendChild(svgEl("line", { class: "brk", x1: bx, x2: bx, y1: T, y2: H - B }));
+      svg.appendChild(svgEl("text", { class: "brk-l", x: bx + 3, y: T + 9 }, "method " + r.method));
+    }
+  });
+  const path = key => {
+    let d = "", pen = false;
+    runs.forEach((r, i) => {
+      const v = r.status === "none" ? null : num(r[key]);
+      if (v == null || (i > 0 && r.method !== runs[i - 1].method)) pen = false;
+      if (v == null) return;
+      d += (pen ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1) + " ";
+      pen = true;
+    });
+    return d.trim();
+  };
+  const cp = path("cost"); if (cp) svg.appendChild(svgEl("path", { class: "cost-line", d: cp }));
+  const lp = path("perShortlisted"); if (lp) svg.appendChild(svgEl("path", { class: "lead-line", d: lp }));
+  runs.forEach((r, i) => {
+    const v = num(r.perShortlisted);
+    if (v == null) {
+      const g = svgEl("line", { class: "none", x1: x(i) - 4, x2: x(i) + 4, y1: y(0) - 4, y2: y(0) });
+      g.appendChild(svgEl("title", {}, r.date + (r.status === "none" ? ": no run (the PC was off or asleep)" : ": nothing shortlisted")));
+      svg.appendChild(g);
+      return;
+    }
+    const c = svgEl("circle", { class: "pt" + (r.backfilled ? " bf" : ""), cx: x(i), cy: y(v), r: 3.5 });
+    c.appendChild(svgEl("title", {}, r.date + ": " + money(v, r.currency) + " per shortlisted role (" + (r.shortlisted || 0) + " shortlisted, " + money(r.cost, r.currency) + " in all)" + (r.backfilled ? ", backfilled" : "")));
+    svg.appendChild(c);
+  });
+  box.appendChild(svg);
+  const key = el("div", "runs-key");
+  const k1 = el("span"); k1.append(el("i"), document.createTextNode("Cost per shortlisted role"));
+  const k2 = el("span"); k2.append(el("i", "c"), document.createTextNode("Cost of the run"));
+  key.append(k1, k2, el("span", "", "Hollow points: backfilled. A dash on the floor: nothing shortlisted, or no run that day."));
+  if (runs.some((r, i) => i > 0 && r.method !== runs[i - 1].method)) { const k3 = el("span"); k3.append(el("i", "b"), document.createTextNode("Estimating method changed")); key.appendChild(k3); }
+  box.appendChild(key);
+  return box;
+}
+
+function deltaText(now, before, fmt, lowerIsBetter) {
+  if (num(now) == null || num(before) == null) return "";
+  const d = now - before;
+  if (Math.abs(d) < 0.005) return "same as the run before";
+  return (d > 0 ? "up " : "down ") + fmt(Math.abs(d)) + " on the run before" + (lowerIsBetter ? (d < 0 ? " (better)" : "") : "");
+}
+
+function renderRuns() {
+  const root = document.getElementById("runsView");
+  root.textContent = "";
+  const runs = runsSorted();
+  const head = el("div", "runs-head");
+  head.appendChild(el("h2", "", "Morning runs"));
+  head.appendChild(el("span", "hint", runs.length ? "The last " + runs.length + (runs.length === 1 ? " run" : " runs") : ""));
+  root.appendChild(head);
+  if (!runs.length) {
+    root.appendChild(el("p", "empty-note", "No runs recorded yet. Each morning run adds one here when it finishes."));
+    return;
+  }
+  const last = runs[runs.length - 1], prev = runs.length > 1 ? runs[runs.length - 2] : null;
+  const cur = last.currency || "USD";
+  const tiles = el("div", "runs-tiles");
+  const tile = (k, v, d, lead) => { const t = el("div", "tile" + (lead ? " lead" : "")); t.append(el("span", "k", k), el("span", "v", v)); if (d) t.appendChild(el("span", "d", d)); tiles.appendChild(t); };
+  tile("Cost per shortlisted role (estimate)", money(last.perShortlisted, cur), prev ? deltaText(last.perShortlisted, prev.perShortlisted, v => money(v, cur), true) : "", true);
+  tile("Cost of the run (estimate)", money(last.cost, cur), prev ? deltaText(last.cost, prev.cost, v => money(v, cur), true) : "");
+  tile("Shortlisted of scored", (last.shortlisted || 0) + " of " + (last.analysed || 0), prev ? deltaText(last.shortlisted, prev.shortlisted, v => String(v)) : "");
+  tile("Minutes, start to finish", String(last.minutes != null ? last.minutes : ""), prev ? deltaText(last.minutes, prev.minutes, v => String(v), true) : "");
+  root.appendChild(tiles);
+  root.appendChild(runsChart(runs, root.clientWidth));
+
+  const wrap = el("div", "runs-wrap");
+  const t = el("table", "runs-table");
+  const hr = el("tr");
+  ["Run", "Status", "Found", "Scored", "Shortlisted", "Worth a look", "Packs", "Adverts read", "Minutes", "Local tokens", "Claude tokens*", "Cost*", "Per shortlisted*"]
+    .forEach(h => hr.appendChild(el("th", "", h)));
+  const thead = el("thead"); thead.appendChild(hr); t.appendChild(thead);
+  const tb = el("tbody");
+  runs.slice().reverse().forEach(r => {
+    const tr = el("tr");
+    const cell = (v, cls) => tr.appendChild(el("td", cls || "", v == null ? "" : String(v)));
+    cell(new Date(r.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }));
+    const st = el("td", "st", r.status === "done" ? "done" : r.status === "partial" ? "partial" : r.status === "failed" ? "failed" : "no run");
+    if (r.backfilled) { st.appendChild(document.createTextNode(" ")); st.appendChild(el("small", "", "backfilled")); }
+    tr.appendChild(st);
+    cell(r.found); cell(r.analysed); cell(r.shortlisted); cell(r.worthALook); cell(r.packs); cell(r.advertsRead); cell(r.minutes);
+    const lt = r.localTokens || {};
+    cell((lt.in || lt.out) ? compact(lt.in) + " in, " + compact(lt.out) + " out" : "not kept");
+    const ct = r.cloudTokens || {};
+    cell(compact(ct.in) + " in, " + compact(ct.out) + " out", "est");
+    cell(money(r.cost, r.currency), "est");
+    cell(money(r.perShortlisted, r.currency), "est");
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb);
+  wrap.appendChild(t);
+  root.appendChild(wrap);
+  const methods = Array.from(new Set(runs.map(r => r.method))).join(", ");
+  root.appendChild(el("p", "empty-note", "* Estimates (method " + methods + "): Claude's tokens are worked out from the size of what each step reads and writes, priced at the rates in Settings, Control. Read them for the change from run to run, not as a bill. The local model's tokens are counted exactly and cost nothing; runs before 23 October did not keep them. This tab is read-only: the morning run writes it."));
+}
+
+/* ---- Sprint 10 (E15, E16): rebuilding a pack, and how fresh it is ---- */
+const packIsDraft = it => stageOf(it.status) === "draft" && !it.applied;
+const STALE_LABEL = { fresh: "Fresh", probably: "Probably stale", stale: "Stale" };
+
+function staleBadge(it) {
+  if (!it.pack) return null;
+  const s = document.createElement("span");
+  s.className = "scout-badge stale-badge";
+  if (!packIsDraft(it)) {
+    if (!it.applied && ["applied", "conversation"].indexOf(stageOf(it.status)) === -1) return null;
+    s.classList.add("sent");
+    s.textContent = "As sent";
+    s.title = "The pack as it was sent. It is never flagged or rebuilt.";
+    return s;
+  }
+  const st = it.staleness;
+  if (!st || !STALE_LABEL[st.level]) return null;
+  s.classList.add(st.level);
+  s.textContent = STALE_LABEL[st.level];
+  const reasons = Array.isArray(st.reasons) ? st.reasons.filter(x => typeof x === "string").slice(0, 6) : [];
+  s.title = (reasons.length ? reasons.join("; ") : "Nothing has changed since it was built") + (st.checked ? " (checked " + fmtDate(st.checked) + ")" : "");
+  return s;
+}
+
+function rebuildForm(pk, it) {
+  if (pk.querySelector(".rebuild-form")) return;
+  const f = el("form", "rebuild-form");
+  const inp = el("input");
+  inp.type = "text"; inp.maxLength = 200; inp.placeholder = "Why (optional), e.g. new CV master";
+  inp.setAttribute("aria-label", "Reason for the rebuild (optional)");
+  const go = el("button", "btn", "Ask for a rebuild"); go.type = "submit";
+  const no = el("button", "btn ghost", "Cancel"); no.type = "button";
+  no.addEventListener("click", () => f.remove());
+  f.addEventListener("submit", ev => {
+    ev.preventDefault();
+    const reason = inp.value.trim().slice(0, 200);
+    save(it.id, {
+      rebuild: { requested: todayIso(), reason: reason, by: "user" },
+      log: withEntry(it, { text: "Asked for the pack to be rebuilt" + (reason ? ": " + reason : "") })
+    }, "Rebuild requested: the next morning run builds it beside the old pack");
+  });
+  f.append(inp, go, no);
+  pk.appendChild(f);
+  inp.focus();
+}
+
+function rebuiltBox(it) {
+  const r = it.rebuilt;
+  const box = document.createElement("div");
+  box.className = "scout-suggest";
+  const head = el("div", "head", "Rebuilt pack ready");
+  const why = el("div", "why", "Built " + fmtDate(r.built) + " in " + r.folder + (r.reason ? ". " + r.reason : "") + ". The old pack is unchanged.");
+  box.append(head, why);
+  if (canWrite) {
+    const acts = el("div", "acts");
+    const ok = btn("Use the rebuilt pack", () => save(it.id, {
+      pack: r.folder, rebuilt: null, rebuild: null, staleness: null,
+      log: withEntry(it, { rebuiltPack: r.folder, text: "Switched to the rebuilt pack: " + r.folder + " (was " + it.pack + ")" })
+    }, "The card now points at the rebuilt pack"), "Point this card at the new folder. Nothing is deleted.");
+    const no = btn("Dismiss", () => save(it.id, {
+      rebuilt: null, rebuild: null,
+      log: withEntry(it, { text: "Kept the original pack; the rebuilt one stays in " + r.folder })
+    }, "Kept the original pack"), "Keep the old pack. The rebuilt folder stays where it is.");
+    if (packIsDraft(it)) acts.append(ok, no); else acts.append(no);
+    box.appendChild(acts);
+  }
+  return box;
+}
+
 document.querySelectorAll("#views button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
-window.addEventListener("resize", () => { if (view === "calendar") renderCalendar(); });
+window.addEventListener("resize", () => { if (view === "calendar") renderCalendar(); if (view === "runs") renderRuns(); });
 setTimeout(() => setView(view), 0);
 
 /* ───────────── Settings (the Job Scout's configuration) ─────────────
@@ -2768,7 +3043,7 @@ setTimeout(() => setView(view), 0);
    place and word values to the PC (Job Scout\config\settings.json) for the
    next morning's mail read. SETTINGS_DEFAULTS are the values agreed on
    14 October 2026 (rubric v2), used for Reset and until a first save. */
-const SETTINGS_DEFAULTS = {"scoring": {"weights": {"scope": 20, "proof": 25, "ai": 10, "mustHaves": 15, "odds": 10, "engagement": 10, "company": 5, "pay": 5}, "threshold": 60, "lookBand": 55, "dailyCap": 5, "seniorPmCap": 5, "seniorPmSoleOwnerCap": 10, "carryOverMax": 2, "readAdvertFrom": 45}, "filters": {"ukPermanentMin": 110000, "ukPermanentTolerancePct": 10, "ukContractMinPerDay": 750, "secondMin": null, "fractionalMin": null, "hoursPerDay": 8, "eurToGbp": 0.85, "usdToGbp": 0.75}, "warnings": {"staleAfterDays": 21, "applicantsWarnAt": 200, "recruiterWords": ["recruitment", "recruiting", "recruiters", "talent", "search", "resourcing", "staffing", "headhunters", "executive search", "people partners", "consulting group"], "unnamedClient": ["our client", "my client", "confidential", "stealth", "undisclosed", "unnamed client"], "nda": ["nda", "non-disclosure"]}, "markets": {"london": ["london", "greater london", "hounslow", "heathrow", "croydon", "canary wharf", "city of london", "westminster", "stratford", "hammersmith", "shoreditch", "camden", "islington", "southwark"], "uk": ["united kingdom", "uk", "england", "scotland", "wales", "northern ireland", "britain", "manchester", "bristol", "leeds", "birmingham", "edinburgh", "glasgow", "cambridge", "oxford", "southampton", "reading", "brighton", "newcastle", "liverpool", "sheffield", "nottingham", "cardiff", "belfast", "milton keynes", "guildford", "bath", "york", "leicester", "coventry", "aberdeen", "dundee", "swansea", "exeter", "norwich", "sunderland", "slough", "watford"], "second": [], "remoteMaybeUk": ["emea", "europe", "worldwide", "anywhere", "global"], "elsewhere": ["united states", "usa", "new york", "san francisco", "canada", "toronto", "germany", "berlin", "munich", "france", "paris", "netherlands", "amsterdam", "spain", "barcelona", "madrid", "portugal", "lisbon", "ireland", "dublin", "switzerland", "zurich", "geneva", "singapore", "hong kong", "japan", "tokyo", "india", "bengaluru", "bangalore", "australia", "sydney", "poland", "warsaw", "sweden", "stockholm", "denmark", "copenhagen", "israel", "tel aviv", "uae", "dubai", "lausanne", "basel", "bern", "vienna", "austria", "brussels", "belgium", "luxembourg", "milan", "italy", "rome", "prague", "budapest", "bucharest", "athens", "helsinki", "oslo", "norway", "finland", "estonia", "tallinn", "kraków", "krakow", "seoul", "korea", "shanghai", "beijing", "shenzhen", "china", "manila", "kuala lumpur", "bangkok", "jakarta", "vietnam", "ho chi minh", "hanoi", "mexico", "brazil", "são paulo", "sao paulo", "argentina", "south africa", "cape town", "nairobi", "lagos", "cairo", "riyadh", "doha", "austin", "seattle", "boston", "chicago", "los angeles", "denver", "atlanta", "miami", "washington", "vancouver", "montreal", "melbourne", "auckland"], "openFromAbroad": ["consultancy", "consultant", "contract", "contractor", "fractional", "freelance", "interim", "advisor", "adviser"]}, "level": {"leadership": ["senior", "sr", "lead", "staff", "principal", "group", "gpm", "head", "director", "vp", "vice president", "chief product", "cpo"], "productWords": ["product"], "otherKinds": ["fractional", "interim", "consultant", "consultancy", "advisor", "adviser", "mentor", "tutor", "teacher", "instructor", "lecturer", "coach", "trainer"], "otherKindsContext": ["ai", "artificial intelligence", "product", "tech", "technology", "digital", "coding", "computing", "computer", "software", "data", "agentic", "automation"], "belowFloor": ["associate product", "junior", "graduate", "intern", "apprentice", "entry level", "apm"], "notProductManagement": ["product designer", "product marketing", "product analyst", "product engineer", "product support", "product specialist", "product operations", "software engineer", "engineering manager", "developer", "data scientist", "recruiter", "sales", "account executive", "account manager"], "notProductUnlessProductInTitle": ["engineer", "engineering", "developer", "delivery", "programme manager", "program manager", "project manager", "architect", "scientist", "designer", "analyst"], "hardwareWords": ["semiconductor", "hardware", "firmware", "silicon", "chip", "ic design", "asic", "wafer", "fab", "packaging", "test engineering"]}, "targets": {"companies": ["Corvid Labs"], "packBelowLine": false, "extraPlaces": 1}, "sources": {"senders": [{"source": "linkedin", "from": "jobalerts-noreply@linkedin.com"}, {"source": "linkedin", "from": "jobs-noreply@linkedin.com"}, {"source": "linkedin", "from": "jobs-listings@linkedin.com"}, {"source": "hackajob", "from": "hackajob"}, {"source": "google", "from": "careers-noreply@google.com"}, {"source": "microsoft", "from": "careers.microsoft.com"}], "firstRunLookbackDays": 7, "repliesEnabled": true, "replySenders": [{"system": "greenhouse", "domain": "greenhouse-mail.io"}, {"system": "greenhouse", "domain": "us.greenhouse-mail.io"}, {"system": "lever", "domain": "hire.lever.co"}, {"system": "ashby", "domain": "ashbyhq.com"}, {"system": "workable", "domain": "workablemail.com"}, {"system": "workday", "domain": "myworkday.com"}, {"system": "smartrecruiters", "domain": "smartrecruiters.com"}, {"system": "teamtailor", "domain": "teamtailor-mail.com"}, {"system": "personio", "domain": "personio.de"}, {"system": "linkedin", "domain": "linkedin.com"}]}, "packs": {"letterMinWords": 350, "letterMaxWords": 450, "cvLocationUk": "London", "cvLocationSecond": ""}, "control": {"paused": false, "advertsPerRun": 20}, "reader": {"enabled": true, "model": "qwen2.5:14b", "useForScoring": false, "waitMinutes": 30}};
+const SETTINGS_DEFAULTS = {"scoring": {"weights": {"scope": 20, "proof": 25, "ai": 10, "mustHaves": 15, "odds": 10, "engagement": 10, "company": 5, "pay": 5}, "threshold": 60, "lookBand": 55, "dailyCap": 5, "seniorPmCap": 5, "seniorPmSoleOwnerCap": 10, "carryOverMax": 2, "readAdvertFrom": 45}, "filters": {"ukPermanentMin": 110000, "ukPermanentTolerancePct": 10, "ukContractMinPerDay": 750, "secondMin": null, "fractionalMin": null, "hoursPerDay": 8, "eurToGbp": 0.85, "usdToGbp": 0.75}, "warnings": {"staleAfterDays": 21, "applicantsWarnAt": 200, "recruiterWords": ["recruitment", "recruiting", "recruiters", "talent", "search", "resourcing", "staffing", "headhunters", "executive search", "people partners", "consulting group"], "unnamedClient": ["our client", "my client", "confidential", "stealth", "undisclosed", "unnamed client"], "nda": ["nda", "non-disclosure"]}, "markets": {"london": ["london", "greater london", "hounslow", "heathrow", "croydon", "canary wharf", "city of london", "westminster", "stratford", "hammersmith", "shoreditch", "camden", "islington", "southwark"], "uk": ["united kingdom", "uk", "england", "scotland", "wales", "northern ireland", "britain", "manchester", "bristol", "leeds", "birmingham", "edinburgh", "glasgow", "cambridge", "oxford", "southampton", "reading", "brighton", "newcastle", "liverpool", "sheffield", "nottingham", "cardiff", "belfast", "milton keynes", "guildford", "bath", "york", "leicester", "coventry", "aberdeen", "dundee", "swansea", "exeter", "norwich", "sunderland", "slough", "watford"], "second": [], "remoteMaybeUk": ["emea", "europe", "worldwide", "anywhere", "global"], "elsewhere": ["united states", "usa", "new york", "san francisco", "canada", "toronto", "germany", "berlin", "munich", "france", "paris", "netherlands", "amsterdam", "spain", "barcelona", "madrid", "portugal", "lisbon", "ireland", "dublin", "switzerland", "zurich", "geneva", "singapore", "hong kong", "japan", "tokyo", "india", "bengaluru", "bangalore", "australia", "sydney", "poland", "warsaw", "sweden", "stockholm", "denmark", "copenhagen", "israel", "tel aviv", "uae", "dubai", "lausanne", "basel", "bern", "vienna", "austria", "brussels", "belgium", "luxembourg", "milan", "italy", "rome", "prague", "budapest", "bucharest", "athens", "helsinki", "oslo", "norway", "finland", "estonia", "tallinn", "kraków", "krakow", "seoul", "korea", "shanghai", "beijing", "shenzhen", "china", "manila", "kuala lumpur", "bangkok", "jakarta", "vietnam", "ho chi minh", "hanoi", "mexico", "brazil", "são paulo", "sao paulo", "argentina", "south africa", "cape town", "nairobi", "lagos", "cairo", "riyadh", "doha", "austin", "seattle", "boston", "chicago", "los angeles", "denver", "atlanta", "miami", "washington", "vancouver", "montreal", "melbourne", "auckland"], "openFromAbroad": ["consultancy", "consultant", "contract", "contractor", "fractional", "freelance", "interim", "advisor", "adviser"]}, "level": {"leadership": ["senior", "sr", "lead", "staff", "principal", "group", "gpm", "head", "director", "vp", "vice president", "chief product", "cpo"], "productWords": ["product"], "otherKinds": ["fractional", "interim", "consultant", "consultancy", "advisor", "adviser", "mentor", "tutor", "teacher", "instructor", "lecturer", "coach", "trainer"], "otherKindsContext": ["ai", "artificial intelligence", "product", "tech", "technology", "digital", "coding", "computing", "computer", "software", "data", "agentic", "automation"], "belowFloor": ["associate product", "junior", "graduate", "intern", "apprentice", "entry level", "apm"], "notProductManagement": ["product designer", "product marketing", "product analyst", "product engineer", "product support", "product specialist", "product operations", "software engineer", "engineering manager", "developer", "data scientist", "recruiter", "sales", "account executive", "account manager"], "notProductUnlessProductInTitle": ["engineer", "engineering", "developer", "delivery", "programme manager", "program manager", "project manager", "architect", "scientist", "designer", "analyst"], "hardwareWords": ["semiconductor", "hardware", "firmware", "silicon", "chip", "ic design", "asic", "wafer", "fab", "packaging", "test engineering"]}, "targets": {"companies": ["Corvid Labs"], "packBelowLine": false, "extraPlaces": 1}, "sources": {"senders": [{"source": "linkedin", "from": "jobalerts-noreply@linkedin.com"}, {"source": "linkedin", "from": "jobs-noreply@linkedin.com"}, {"source": "linkedin", "from": "jobs-listings@linkedin.com"}, {"source": "hackajob", "from": "hackajob"}, {"source": "google", "from": "careers-noreply@google.com"}, {"source": "microsoft", "from": "careers.microsoft.com"}], "firstRunLookbackDays": 7, "repliesEnabled": true, "replySenders": [{"system": "greenhouse", "domain": "greenhouse-mail.io"}, {"system": "greenhouse", "domain": "us.greenhouse-mail.io"}, {"system": "lever", "domain": "hire.lever.co"}, {"system": "ashby", "domain": "ashbyhq.com"}, {"system": "workable", "domain": "workablemail.com"}, {"system": "workday", "domain": "myworkday.com"}, {"system": "smartrecruiters", "domain": "smartrecruiters.com"}, {"system": "teamtailor", "domain": "teamtailor-mail.com"}, {"system": "personio", "domain": "personio.de"}, {"system": "linkedin", "domain": "linkedin.com"}]}, "packs": {"letterMinWords": 350, "letterMaxWords": 450, "cvLocationUk": "London", "cvLocationSecond": "", "rebuildsPerRun": 2, "staleAfterDays": 7}, "control": {"paused": false, "advertsPerRun": 20}, "reader": {"enabled": true, "model": "qwen2.5:14b", "useForScoring": false, "waitMinutes": 30}, "costs": {"inputPerMillion": 5, "outputPerMillion": 25, "currency": "USD"}};
 
 const SITE_NAMES = { linkedin: "LinkedIn", hackajob: "hackajob", google: "Google Careers", microsoft: "Microsoft Careers", request: "On request" };
 const SETTINGS_TABS = [
@@ -2789,6 +3064,9 @@ const SETTINGS_FIELDS = [
   { tab: "control", key: "reader.model", label: "Local model (as named in Ollama)", type: "text", help: "Set from the model retest. It must be installed on the PC (ollama pull <name>)." },
   { tab: "control", key: "reader.useForScoring", label: "Score from the PC's reading", type: "bool", help: "Off until a model passes the retest: the PC's specs then feed only the ATS match, and the morning run reads the PC's copy of each advert itself." },
   { tab: "control", key: "reader.waitMinutes", label: "Minutes the reader waits for the list of adverts", type: "int", min: 0, max: 120 },
+  { tab: "control", group: "Cost estimate on the Runs tab (G11)", key: "costs.inputPerMillion", label: "Claude input, price per million tokens", type: "dec", min: 0, max: 1000, help: "Used only to estimate each run's cost on the Runs tab, at API prices. Changing it changes the estimate from the next run." },
+  { tab: "control", key: "costs.outputPerMillion", label: "Claude output, price per million tokens", type: "dec", min: 0, max: 1000 },
+  { tab: "control", key: "costs.currency", label: "Currency of those prices (USD, GBP)", type: "text" },
   { tab: "scoring", group: "Rubric weights (must add up to 100)", key: "scoring.weights.scope", label: "Scope and level", type: "int", min: 0, max: 100, weight: true },
   { tab: "scoring", key: "scoring.weights.proof", label: "Proof-point fit", type: "int", min: 0, max: 100, weight: true },
   { tab: "scoring", key: "scoring.weights.ai", label: "AI and agentic alignment", type: "int", min: 0, max: 100, weight: true },
@@ -2846,6 +3124,8 @@ const SETTINGS_FIELDS = [
   { tab: "packs", key: "packs.letterMaxWords", label: "Words, at most", type: "int", min: 100, max: 1000 },
   { tab: "packs", group: "CV location line", key: "packs.cvLocationUk", label: "For UK roles", type: "text" },
   { tab: "packs", key: "packs.cvLocationSecond", optional: true, label: "For second-market roles", type: "text" },
+  { tab: "packs", group: "Rebuilding and staleness (E15, E16)", key: "packs.rebuildsPerRun", label: "Rebuilt packs a run, at most", type: "int", min: 0, max: 10, help: "Rebuilds have their own limit, so new roles still get their packs." },
+  { tab: "packs", key: "packs.staleAfterDays", label: "Call a pack probably stale after this many days", type: "int", min: 1, max: 90 },
 ];
 
 /* Values that are not settings, shown so nothing looks hidden. */

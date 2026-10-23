@@ -1,6 +1,6 @@
 # Job Scout: data reference
 
-_Version 0.14.0 · 21 October 2026_
+_Version 0.16.0 · 23 October 2026_
 
 Every file and record the system reads or writes. Paths are relative to the folder that holds the Job Scout folder (the projects folder) unless they start with the Job Scout folder's own names.
 
@@ -60,18 +60,19 @@ A role scored on request (H15, 0.13.0) has its own folder, `data\runs\<date>-req
 | `provisional.json` | Claude, part 1 | `[{ id, provisional, readAdvert }]`: the provisional scores, and which roles were chosen for reading (0.8.0) |
 | `advert-urls.json` | Claude, part 1 | `[{ id, url, foundBy, provisional }]`: where each chosen advert is published; checked by `validate.py urls` (https only, never LinkedIn, within the per-run limit) `foundBy` is one of careers page, job board, aggregator, alert (B16, 0.9.0) |
 | `specs\<id>.json` | Reader (PC) | `{ id, url, status (ok, unreliable, not-readable, closed, failed), reason, via, model, chars, linesRemoved, seconds, spec, grounding, readAt }`. `spec`: title, company, location, workplace, employment, pay, mustHaves, niceToHaves, responsibilities, reportsTo, suspectedInjection, injectionLines. `grounding`: what the check kept and dropped. Checked by `validate.py jobspec` before use |
-| `specs\summary.json` | Reader (PC) | Counts, the model, median time and speed, warnings (Ollama not running, model missing, running slowly, runtime changed), the ledger id; `ollamaVersion` (0.13.0, H19) and `skippedSlow`, the adverts left for part 2 when the model ran below 15 tokens a second (G9) |
+| `specs\summary.json` | Reader (PC) | Counts, the model, median time and speed, warnings (Ollama not running, model missing, running slowly, runtime changed), the ledger id; `ollamaVersion` (0.13.0, H19) and `skippedSlow`, the adverts left for part 2 when the model ran below 15 tokens a second (G9); `tokens: { in, out }`, the model's own counts (0.15.0, G11) |
+| `staleness.json` | Mail read (PC), 06:30 | E16 (0.15.0): `{ checked, staleAfterDays, settingsVersion, packs: [{ pack, folder, level, reasons, built }], problems }`, every pack folder in Professional development and one folder down (0.16.0, BUG-8) compared with what its `pack.json` says it was built from; cards are matched by `folder`. Hashes and reasons only |
 | `adverts\<id>.md` | Reader (PC) or Claude | The advert's text, between `<<<ADVERT` and `ADVERT>>>`: from the PC (cleaned, full text) or, where the PC could not read it, from Claude's reading |
 | `run.md` "Emails read" | Code | The file names of the emails read (0.7.0). The emails themselves are kept only in the private store on the PC, `%LOCALAPPDATA%\JobScout\emails\<date>\`, for 30 days (H14); `npm run share-email -- <date> <file>` copies one to `data\shared-emails\` for a parser fix |
 | `roles.json` | Code | Every role found, as judged records (below) |
 | `candidates.json` | Code | The judged records with `stage: "score"` only |
 | `run.md` | Code | Human-readable report: to score (with age, flags and warnings), dropped with reasons, already known, source health, problems |
-| `status.json` | Code | `{ finished, bridge, ok, problems[], counts: { found, score, carried } }`. `ok` is false only when Bridge failed |
+| `status.json` | Code | `{ finished, bridge, ok, problems[], missed[] (0.16.0, G4: mornings with no run since the last), counts: { found, score, carried } }`. `ok` is false only when Bridge failed |
 | `adverts\<source>-<id>.md` | Claude | The advert as read, with source URL and date |
 | `digest.md` | Claude | The ranked digest: shortlist with per-criterion scores, below the line, dropped on reading |
 | `scores.json` | Claude | One object per scored role (below) |
-| `replies\found.json` | Code (PC), 06:30 | Sprint 6a (I1). `{ date, since, firstLook, read, watch: { written, entries }, replies: [{ id (r- and 12 hex), file, day, date, via (hiring-system, company, recruiter, linkedin), system, domain, cardIds, verified (DKIM), firstLook, thread: { id, parents } (hashes) }] }`. No subject, no body: the emails are in the private store |
-| `replies\summary.json` | Reply reader (PC), 07:45 | Sprint 6a (I2). `{ date, status, model, firstLook, grade: { passed, date, right, of }, counts, replies: [ the found fields, plus status (ok, partial, failed, missing), reason, read: { type, company, role, dates: [{ what, asWritten, date, time }], ask (a quote, 200 characters at most), askBy, partial, dropped }, calendar: { start, end, zone, organiserDomain, method }, links, warnings, untrusted ] }`. Checked by `validate.py replies` |
+| `replies\found.json` | Code (PC), 06:30 | Sprint 6a (I1). `{ date, since, firstLook, read, watch: { written, entries }, replies: [{ id (r- and 12 hex), file, day, date, via (hiring-system, company, recruiter, linkedin), system, domain, cardIds, verified (DKIM), firstLook, thread: { id, parents } (hashes), carriedFrom (0.16.0: the morning it was first found, when carried forward unread, BUG-9) }] }`. No subject, no body: the emails are in the private store |
+| `replies\summary.json` | Reply reader (PC), 07:45 | Sprint 6a (I2). `{ date, status, model, firstLook, grade: { passed, date, right, of }, counts, replies: [ the found fields, plus status (ok, partial, failed, missing), reason, read: { type, company, role, dates: [{ what, asWritten, date, time }], ask (a quote, 200 characters at most), askBy, partial, dropped }, calendar: { start, end, zone, organiserDomain, method }, links, warnings, untrusted ] }`. Checked by `validate.py replies`. From 0.15.0 also `tokens: { in, out }` (G11); from 0.16.0 `status: "stopped"` with `stoppedAt` when the reader was stopped by hand (BUG-9) |
 | `replies\matched.json` | Claude, part 2 | Sprint 6a (I3, I4). The output of `tools\replies.py match`: `{ date, gradePassed, firstLook, counts, items: [{ replyId, cardId, type, action (move, suggest, log, unmatched, skip, unread), from, to, note, offer, ask, askBy, dates, calendar, warnings }], patches: [{ cardId, patch: { status?, log, suggestions? } }] }`. Checked by `validate.py moves` before any patch is written |
 
 **Judged record** (`roles.json`, `candidates.json`):
@@ -135,7 +136,9 @@ A role scored on request (H15, 0.13.0) has its own folder, `data\runs\<date>-req
 | `<Name> - covering letter - <label>.docx/.pdf/.md` | The letter, one page |
 | `form-answers.md` | Likely form questions and suggested answers, drafts marked |
 | `baseline.json` | `{ "cv": [paragraphs], "letter": [paragraphs] }` as built, for `pack_diff.py` |
-| `pack.json` | `{ id, company, role, score, built, folder, files[], checks }`, written last: a folder without it is unfinished |
+| `pack.json` | `{ id, company, role, score, built, folder, files[], checks, builtFrom }`, written last: a folder without it is unfinished. `builtFrom` (E16, required from 23 October 2026): `{ version: 1, built, settingsVersion, files: { cvBase, letterBase, careerNotes, highlights, formAnswers: { path (inside Professional development), kind (file or folder), hash } }, advert: { mustHaves, pay, place, closes, hash } }`; `advert` required from 24 October 2026 (E17) |
+
+A rebuilt pack (E15) is a new folder, `<Company> - <Role> (rebuilt <date>)`, beside the old one.
 
 ## Board cards
 
@@ -158,6 +161,9 @@ Collection `applications` in the Application Pipeline artifact. The user's own c
 | `cvFormat` | `"two-page"` |
 | `snoozeUntil` | Hidden until this date |
 | `archivedReason`, `archivedAt` | Why and when the user passed; read by the weekly and monthly reviews |
+| `staleness` | E16: `{ level (fresh, probably, stale), reasons[], checked }`, written by part 2 on Draft cards only |
+| `rebuild` | E15: `{ requested, reason, by: "user" }`, written by the user's Rebuild pack; cleared by the run when it rebuilds, or by Cancel |
+| `rebuilt` | E15: `{ folder, built, cause (request or advert), reason }`, a rebuilt pack waiting for the user's choice; cleared by Use the rebuilt pack (which sets `pack`) or Dismiss |
 
 ## The Inbox and Calendar collections (Sprint 6b, board v20)
 
@@ -168,6 +174,10 @@ Created by part 2 with `tools\replies.py docs` (create-only, checked by `validat
 | `replies` | the reply's id | `replyId, cardId, company, role, domain, date, type, action (move, suggest, log, unmatched, unread), note, offer, seen, source, created`; the board adds `linkedBy` when the user links an unmatched reply |
 | `todos` | the reply's id, or random for their own | `replyId, cardId, company, role, domain, ask, askBy, done, doneAt, source (scout or user), created` |
 | `events` | the reply's id with `-c` (calendar file), `-1` to `-6` (proposed slots) or `-d` (deadline); random for their own | `replyId, cardId, company, role, domain, kind (confirmed, proposed, deadline), start (wall time or date), end, zone, zoneAssumed, title, asWritten, group, source, created`; the board adds `chosen` |
+
+## The run log (`runs`, G11, board v23)
+
+One document per morning run, id the run's date, written by part 2 last (`tools\runlog.py build`, checked by `validate.py runlog`); the board only reads it. Fields: `date, status (done, partial, failed, none), found, toScore, dropped, known, analysed, shortlisted, worthALook, packs, advertsRead, minutes, steps, localTokens {in, out}, cloudTokens {in, out}, cost, currency, perShortlisted (empty when nothing was shortlisted), estimated (the fields that are estimates), method, backfilled, ledger[]`. A morning with no run (G4) has `status: "none"` and nil counts. Counts, minutes and local tokens are exact; `cloudTokens`, `cost` and `perShortlisted` are estimates by method 1 (`runlog.py`, `METHOD`).
 
 ## Board settings (`settings/current`)
 
@@ -189,6 +199,8 @@ One document in the board's database, edited in the Settings dialog and read by 
 | `reader.enabled`, `model`, `useForScoring`, `waitMinutes` | true, qwen2.5:14b, false (until a model passes the retest), 30 (H5) |
 | `level.hardwareWords` | Hardware and semiconductor words, dropped in every market (B11) |
 | `packs.letterMinWords`, `letterMaxWords`, `cvLocationUk`, `cvLocationSecond` | 350, 450, London, the second market's city |
+| `packs.rebuildsPerRun`, `staleAfterDays` | 2 (E15), 7 (E16) |
+| `costs.inputPerMillion`, `outputPerMillion`, `currency` | 5, 25, USD: the prices the run log's cost estimate uses (G11) |
 | `control.paused` | false. When true the mail read, the morning run and the weekly run all stop before doing anything (Sprint 4, H4) |
 | `control.advertsPerRun` | 20: the most adverts the morning run reads in full |
 

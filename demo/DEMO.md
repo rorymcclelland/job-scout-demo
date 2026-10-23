@@ -27,14 +27,16 @@ Everything in [procedures/SCOUT.md](../procedures/SCOUT.md) "Boundaries, always"
    - the banks: `demo/form-answers.md` for `validate.py disclosure --bank` and `demo/ats-terms.md` for `ats_match.py --bank`;
    - in the `build_pack.py` spec, `"name": "Sam Calder"`, `"contact": "sam.calder@example.com  ·  +44 7700 900000"` and `"pageTwoStartsWith": "Group Product Manager, Privacy and Permissions, Northwind Browser"`;
    - the pack under `data/demo/<date>/packs/<Company> - <Role>/`;
+   - what it was built from (E16): `python3 tools/staleness.py record --root demo --cv "documents/Sam Calder - CV.docx" --letter "documents/Sam Calder - covering letter.docx" --notes candidate/career --highlights candidate/candidate-profile.md --answers form-answers.md --spec <the advert's spec, or one made with tools/staleness.py facts when Ollama was off> --into pack.json` (in the demo, `demo/` stands in for the Professional development folder);
    - the approved AI-use answer: "Yes. I designed and run my own AI-assisted job search, and I review and edit everything it drafts before it is sent.";
    - the reviewer given the **demo candidate only**: `demo/candidate/positioning.md` and `about.md` as `shared/`, and `demo/candidate/career/` as `career/`.
 6. **Board.** After the `demoboard` check passes:
    - Draft cards for the shortlisted roles, each checked with `validate.py card --demo`; the packed card's `pack` is `<project folder>\data\demo\<date>\packs\<folder>` (the project folder's own name, such as `Job Scout`);
    - "worth a look" roles in the digest only;
    - the replies (SCOUT.md step 10): in the first look back, and until the reply reader passes its grading, every move is a suggestion. With Ollama running, the invitation becomes a confirmed event and a to-do, the rejection a suggestion to move its card to Rejected, and the fake offer shows its warning. Without Ollama the replies stay unread, and the digest says so.
-7. **Digest.** Write `digest.md` in the run folder, as in a real run, with a first line: "Demo run: made-up data only."
-8. **Tell the user** in three or four lines: roles scored and shortlisted, the pack and what the reviewer left for sign-off, the replies, and the two planted attacks and how each was caught.
+7. **Run log.** SCOUT.md step 11a on the demo run folder and its ledger, written to the demo board's `runs` collection (G11). Its cost is an estimate.
+8. **Digest.** Write `digest.md` in the run folder, as in a real run, with a first line: "Demo run: made-up data only."
+9. **Tell the user** in three or four lines: roles scored and shortlisted, the pack and what the reviewer left for sign-off, the replies, and the two planted attacks and how each was caught.
 
 ## Resetting
 

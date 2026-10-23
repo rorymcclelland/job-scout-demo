@@ -1,4 +1,4 @@
-Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=talentco.example
+Authentication-Results: mx.mail.example; dkim=pass header.d=talentco.example
 From: "Sam Taylor" <sam.taylor@talentco.example>
 To: sam@example.com
 Subject: Still interested in the Northwind role?

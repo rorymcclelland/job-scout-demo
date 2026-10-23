@@ -10,7 +10,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadSettings } from "../src/config.ts";
-import { run } from "../src/scout.ts";
+import { carryReplies, run } from "../src/scout.ts";
+import { markStopped } from "../src/reader/stopped.ts";
 import { readReplies } from "../src/read-replies.ts";
 import { makeSheet, scoreSheet, sheetPath } from "../src/grade-replies.ts";
 import { appears, codeWarnings, groundReply, parseIcs, resolveDate, zoneNear, type ModelReply } from "../src/reader/reply.ts";
@@ -152,6 +153,45 @@ test("I2 dates: day-month, month-day, UK numeric, and a January date in a Decemb
   assert.deepEqual(resolveDate("next week", ""), { date: null, time: null });
 });
 
+test("BUG-5 dates: US order and abbreviations, a.m. and p.m., and a weekday read against the email's date", () => {
+  assert.deepEqual(resolveDate("Tue, Oct 27, 2026", "2026-10-20T13:31:40Z"), { date: "2026-10-27", time: null });
+  assert.deepEqual(resolveDate("2:30 PM Europe/Dublin", "2026-10-20T13:31:40Z"), { date: null, time: "14:30" });
+  assert.deepEqual(resolveDate("8:00 a.m. UK time on Friday (4:00 p.m. JST)", "2026-10-20T06:02:15Z"), { date: "2026-10-23", time: "08:00" });
+  assert.equal(resolveDate("12:15 pm", "").time, "12:15");
+  assert.equal(resolveDate("12:15 am", "").time, "00:15");
+  assert.equal(resolveDate("3pm on Monday", "2026-10-23T09:00:00Z").date, "2026-10-26");
+  // A weekday in an email sent that same weekday means the next one.
+  assert.equal(resolveDate("Friday at 10:00", "2026-10-23T09:00:00Z").date, "2026-10-30");
+  assert.equal(resolveDate("Sept 3", "2026-08-20T09:00:00Z").date, "2026-09-03");
+  // A quoted header with a two-digit year is not resolved from its weekday.
+  assert.deepEqual(resolveDate("On Tuesday, 10/20/26 at 18:30", "2026-10-21T18:25:28Z"), { date: null, time: "18:30" });
+  // From the Sprint 10 check: a dotted date is not a time, and a weekday counts from the sender's own day.
+  assert.equal(resolveDate("20.10.2026", "2026-10-21T09:00:00Z").time, null);
+  assert.equal(resolveDate("4:00 p.m. JST on Friday", "2026-10-22T21:00:00Z", "Asia/Tokyo").date, "2026-10-30", "sent Friday 06:00 in Tokyo, Thursday in UTC");
+  assert.equal(resolveDate("4:00 p.m. on Friday", "2026-10-22T21:00:00Z", "Europe/London").date, "2026-10-23");
+});
+
+test("BUG-5 zones: JST and a written IANA zone", () => {
+  assert.equal(zoneNear("2:30 PM Europe/Dublin", "Time: 2:30 PM Europe/Dublin"), "Europe/Dublin");
+  assert.equal(zoneNear("4:00 p.m. JST", "at 4:00 p.m. JST"), "Asia/Tokyo");
+  assert.equal(zoneNear("8:00 a.m. UK time on Friday (4:00 p.m. JST)", "8:00 a.m. UK time on Friday (4:00 p.m. JST)"), "Europe/London", "the first zone written wins");
+});
+
+test("BUG-5 a date written apart from its time is joined into one appointment", () => {
+  const text = "Your interview is confirmed. Date: Tue, Oct 27, 2026 Time: 2:30 PM Europe/Dublin";
+  const g = groundReply({ ...base, type: "invitation", dates: [{ what: "Date", asWritten: "Tue, Oct 27, 2026" }, { what: "Time", asWritten: "2:30 PM Europe/Dublin" }] }, text, "2026-10-20T13:31:40Z");
+  assert.equal(g.dates.length, 1);
+  assert.deepEqual([g.dates[0].date, g.dates[0].time, g.dates[0].zone], ["2026-10-27", "14:30", "Europe/Dublin"]);
+  assert.ok(g.dates[0].asWritten.includes("Oct 27") && g.dates[0].asWritten.includes("2:30 PM"));
+  // Two complete dates stay apart.
+  const two = groundReply({ ...base, type: "invitation", dates: [{ what: "slot", asWritten: "20 October at 14:00" }, { what: "slot", asWritten: "21 October at 10:30" }] }, "20 October at 14:00 or 21 October at 10:30", "2026-10-16T08:00:00Z");
+  assert.equal(two.dates.length, 2);
+  // A quoted header's time is never joined to a deadline written next to it.
+  const quoted = groundReply({ ...base, type: "invitation", dates: [{ what: "quoted", asWritten: "20/10/26 at 18:30" }, { what: "deadline", asWritten: "30 October" }] }, "20/10/26 at 18:30 30 October", "2026-10-21T08:00:00Z");
+  assert.equal(quoted.dates.length, 2);
+  assert.equal(quoted.dates[1].time, null);
+});
+
 test("I2 with Ollama down, replies are listed but not read, and say why", async () => {
   const { settings } = scratch(["greenhouse-rejection"]);
   await run(settings, { bridge: false, today: "2026-10-27" });
@@ -244,3 +284,36 @@ test("BUG-4 (live run, 18 Oct): a VTIMEZONE block's DTSTART is not taken for the
   assert.equal(e.method, "REQUEST");
 });
 
+
+test("BUG-9: a stop is written down, and the unread replies are carried into the next morning once", async () => {
+  const { settings } = scratch(["greenhouse-rejection", "company-invitation"]);
+  await run(settings, { bridge: false, today: "2026-10-23" });
+  const day1 = path.join(settings.dataDir, "runs", "2026-10-23");
+  const found1 = JSON.parse(fs.readFileSync(path.join(day1, "replies", "found.json"), "utf8")).replies;
+  assert.equal(found1.length, 2);
+  // The user stops the reader (Ctrl+C) before it reads them.
+  const written = markStopped(settings.dataDir, "2026-10-23", "qwen2.5:14b", new Date("2026-10-23T07:18:00Z"));
+  assert.equal(written.length, 2);
+  const stopped = JSON.parse(fs.readFileSync(path.join(day1, "replies", "summary.json"), "utf8"));
+  assert.equal(stopped.status, "stopped");
+  assert.match(stopped.warnings[0], /stopped at \d\d:\d\d/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(day1, "specs", "summary.json"), "utf8")).status, "stopped");
+  assert.deepEqual(markStopped(settings.dataDir, "2026-10-23", "m"), [], "a summary already written is never overwritten");
+  // Next morning: no new mail, but yesterday's unread replies are listed again, marked as carried.
+  const carried = carryReplies(settings.dataDir, "2026-10-24", []);
+  assert.deepEqual(carried.map((c) => c.carriedFrom), ["2026-10-23", "2026-10-23"]);
+  assert.ok(carried.every((c) => c.day && c.file), "each keeps its own store day and file");
+  // Read by hand after part 2 scored the day: read, but never acted on, so still carried (found at the check).
+  fs.writeFileSync(path.join(day1, "replies", "summary.json"), JSON.stringify({ status: "done", replies: found1.map((f: { id: string }) => ({ id: f.id, status: "ok" })) }));
+  assert.equal(carryReplies(settings.dataDir, "2026-10-24", []).length, 2);
+  // Acted on by part 2 on a later morning: not carried again. Unread in that run: still carried.
+  const day2 = path.join(settings.dataDir, "runs", "2026-10-24", "replies");
+  fs.mkdirSync(day2, { recursive: true });
+  fs.writeFileSync(path.join(day2, "found.json"), JSON.stringify({ replies: carried }));
+  fs.writeFileSync(path.join(day2, "matched.json"), JSON.stringify({ items: [{ replyId: carried[0].id, action: "log" }, { replyId: carried[1].id, action: "unread" }] }));
+  assert.deepEqual(carryReplies(settings.dataDir, "2026-10-25", []).map((c) => c.id), [carried[1].id]);
+  // The week counts from the morning it was first found, however often it was carried; an email gone from the store is not carried.
+  assert.deepEqual(carryReplies(settings.dataDir, "2026-10-31", []), []);
+  assert.deepEqual(carryReplies(settings.dataDir, "2026-10-25", [], path.join(settings.dataDir, "no-store")), []);
+  assert.deepEqual(carryReplies(settings.dataDir, "2026-10-24", carried.slice(0, 1)).map((c) => c.id), [carried[1].id], "never listed twice");
+});

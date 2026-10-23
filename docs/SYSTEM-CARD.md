@@ -1,6 +1,6 @@
 # Job Scout: system card
 
-_Version 0.14 · 21 October 2026 · owner: the repository's owner ·  reviewed at every sprint close · built with Claude_
+_Version 0.16 · 23 October 2026 · owner: the repository's owner ·  reviewed at every sprint close · built with Claude_
 
 A system card describes an AI system in one place: what it is for, what it is not for, which AI models it uses, how well they perform, where they fail and who is responsible. Words in _italics_ are explained in the [glossary](GLOSSARY.md).
 
@@ -65,7 +65,7 @@ Board cards never hold a contact's email address or phone number. The emails of 
 | _Red team_: hostile inputs stopped | All | 10 of 10 | 17 Oct 2026 |
 | Scoring agrees with the user's own decisions | Not set yet | No baseline yet (see 8) | 17 Oct 2026 |
 | Reply reader agrees with the user's grading | 9 in 10, no rejection read as an invitation | Not graded yet | |
-| Automated tests | All pass | <!-- fact:code-tests -->151<!-- /fact --> code tests, <!-- fact:tool-tests -->164<!-- /fact --> tool tests | 19 Oct 2026 |
+| Automated tests | All pass | <!-- fact:code-tests -->166<!-- /fact --> code tests, <!-- fact:tool-tests -->206<!-- /fact --> tool tests | 19 Oct 2026 |
 
 The tests use made-up emails and adverts, several of them hostile. The red team is run each quarter; the first run was on 17 October 2026.
 

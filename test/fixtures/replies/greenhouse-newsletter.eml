@@ -1,4 +1,4 @@
-Authentication-Results: mailin.protonmail.ch; dkim=pass header.d=greenhouse.io
+Authentication-Results: mx.mail.example; dkim=pass header.d=greenhouse.io
 From: "Greenhouse" <news@greenhouse.io>
 To: sam@example.com
 Subject: Webinar: hiring in 2027
